@@ -1,0 +1,2 @@
+function r(t,e){return e?.[t]||a[t].rpcUrl}function n(t,e){return{...a[t],rpcUrl:r(t,e)}}const a={testnet:{name:"testnet",rpcUrl:"https://api.kaspa.org",chainId:"kaspa-testnet",explorerBaseUrl:"https://explorer-tn11.kaspa.org/tx/"},mainnet:{name:"mainnet",rpcUrl:"https://api.kaspa.org",chainId:"kaspa-mainnet",explorerBaseUrl:"https://explorer.kaspa.org/tx/"}},p="mainnet";export{p as D,a as N,n as g};
+//# sourceMappingURL=networks-ByXuNHo5.js.map
