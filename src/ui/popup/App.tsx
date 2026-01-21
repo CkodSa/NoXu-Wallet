@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import browser from "webextension-polyfill";
 import { useWalletStore } from "../store";
 import type { DerivedAccount } from "../../core/crypto/mnemonic";
 import {
@@ -23,7 +24,7 @@ type MainPage =
   | "token";
 
 async function rpc(type: string, payload?: any) {
-  return chrome.runtime.sendMessage({ type, payload });
+  return browser.runtime.sendMessage({ type, payload });
 }
 
 const STORAGE_SEED_SEEN_KEY = "kaspa_hasSeenSeedBackupScreen";
@@ -373,7 +374,7 @@ function InnerApp() {
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    chrome.storage?.local.get([STORAGE_SEED_SEEN_KEY], (res) => {
+    browser.storage.local.get([STORAGE_SEED_SEEN_KEY]).then((res) => {
       if (res && res[STORAGE_SEED_SEEN_KEY]) setSeedSeen(true);
     });
   }, []);
@@ -428,7 +429,7 @@ function InnerApp() {
       setOnboardingStep("seed");
       setConfirmIndex(Math.floor(Math.random() * (wordCount - 1)));
       setSeedSeen(false);
-      chrome.storage?.local.set({ [STORAGE_SEED_SEEN_KEY]: false });
+      browser.storage.local.set({ [STORAGE_SEED_SEEN_KEY]: false });
     } else {
       setError(res?.error);
     }
@@ -523,7 +524,7 @@ function InnerApp() {
       setError("That word doesn't match. Try again.");
       return;
     }
-    chrome.storage?.local.set({ [STORAGE_SEED_SEEN_KEY]: true });
+    browser.storage.local.set({ [STORAGE_SEED_SEEN_KEY]: true });
     setSeedSeen(true);
     setGeneratedMnemonic(undefined);
     setOnboardingStep("welcome");
@@ -562,7 +563,7 @@ function InnerApp() {
         {/* Logo frame */}
         <div className="login-logo-frame">
           <img
-            src={chrome.runtime.getURL("icons/mylogo1.png")}
+            src={browser.runtime.getURL("icons/mylogo1.png")}
             alt="Logo"
             className="login-logo-img"
           />
@@ -1124,7 +1125,10 @@ function InnerApp() {
         style={{ fontSize: 12 }}
         onClick={() => {
           // Open Chrome extensions page so user can verify extension ID
-          chrome.tabs.create({ url: "chrome://extensions" });
+          // Open extensions page - works in both Chrome and Firefox
+          const isFirefox = navigator.userAgent.includes("Firefox");
+          const extensionsUrl = isFirefox ? "about:addons" : "chrome://extensions";
+          browser.tabs.create({ url: extensionsUrl });
         }}
       >
         Verify Installation (check extension ID)

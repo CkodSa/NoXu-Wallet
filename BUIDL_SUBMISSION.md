@@ -12,7 +12,7 @@ NoXu Wallet
 
 ## ONE-LINER / TAGLINE
 
-A security-first, non-custodial Chrome extension wallet for the Kaspa blockchain.
+A security-first, non-custodial browser extension wallet for the Kaspa blockchain - available on Chrome and Firefox.
 
 ---
 
@@ -22,7 +22,7 @@ NoXu Wallet is a non-custodial browser extension wallet built specifically for t
 
 Built with a security-first architecture, NoXu Wallet ensures your private keys never leave your device. The wallet supports BIP39 mnemonic generation (12/24 words), BIP44 key derivation with Kaspa's SLIP-44 standard (coin type 972), and features automatic wallet locking, dApp connection management, and custom RPC configuration for both mainnet and testnet.
 
-Designed for both everyday users and developers, NoXu provides a clean React-based interface while maintaining a modular TypeScript codebase that separates core cryptographic logic from the extension layer. This architecture enables future portability and extensibility for KRC20 tokens, hardware wallet support, and L2 integrations.
+Now available on both Chrome and Firefox, NoXu provides a clean React-based interface while maintaining a modular TypeScript codebase that separates core cryptographic logic from the extension layer. This architecture enables future portability and extensibility for KRC20 tokens, hardware wallet support, and L2 integrations.
 
 Your keys, your crypto. Always.
 
@@ -46,6 +46,9 @@ Few wallets implement modern cryptographic best practices like memory-safe key h
 **4. Ecosystem Growth Barriers**
 As Kaspa prepares for KRC20 tokens and L2 solutions, the ecosystem needs wallet infrastructure that can grow alongside it.
 
+**5. Browser Compatibility**
+Many crypto wallets only support Chrome, leaving Firefox users without options.
+
 ### Why This Matters
 
 As Kaspa adoption grows, secure and user-friendly wallet infrastructure becomes critical. A single security breach can devastate user trust and harm the entire ecosystem. NoXu Wallet addresses this by implementing bank-grade encryption and defensive security measures typically found only in enterprise applications.
@@ -56,7 +59,7 @@ As Kaspa adoption grows, secure and user-friendly wallet infrastructure becomes 
 
 ### What We Built
 
-NoXu Wallet is a Chrome extension that provides complete Kaspa wallet functionality with an uncompromising focus on security.
+NoXu Wallet is a cross-browser extension (Chrome + Firefox) that provides complete Kaspa wallet functionality with an uncompromising focus on security.
 
 ### Core Features
 
@@ -84,12 +87,18 @@ NoXu Wallet is a Chrome extension that provides complete Kaspa wallet functional
 - Custom RPC URL support for advanced users
 - Address verification UI to prevent manipulation attacks
 
+**Cross-Browser Support**
+- Chrome Extension (Manifest V3 with service worker)
+- Firefox Add-on (Manifest V3 with background scripts)
+- Single codebase using webextension-polyfill
+
 ### Technical Implementation
 
-- **Chrome Manifest V3:** Modern extension architecture with service workers
+- **Chrome/Firefox MV3:** Modern extension architecture with service workers
 - **React 18 + TypeScript:** Type-safe, maintainable UI layer
 - **Zustand:** Lightweight state management
 - **Zod:** Runtime API response validation
+- **webextension-polyfill:** Cross-browser compatibility
 - **Modular Architecture:** Core logic is framework-agnostic for future portability
 
 ---
@@ -105,7 +114,7 @@ NoXu Wallet is a Chrome extension that provides complete Kaspa wallet functional
 │  ├── Options/Settings Page                                      │
 │  └── State Management (Zustand Store)                           │
 ├─────────────────────────────────────────────────────────────────┤
-│  Extension Layer (Chrome MV3)                                   │
+│  Extension Layer (Chrome MV3 / Firefox MV3)                     │
 │  ├── Background Service Worker (State & RPC Handler)            │
 │  ├── Content Script (dApp Bridge)                               │
 │  └── Message Passing (Type-safe RPC)                            │
@@ -130,7 +139,8 @@ NoXu Wallet is a Chrome extension that provides complete Kaspa wallet functional
 | State | Zustand 4.5 |
 | Crypto | @scure/bip32, @scure/bip39, @noble/hashes |
 | Validation | Zod 3.22 |
-| Platform | Chrome Extension (Manifest V3) |
+| Cross-Browser | webextension-polyfill |
+| Platform | Chrome Extension (MV3), Firefox Add-on (MV3) |
 
 ### Key Design Decisions
 
@@ -142,15 +152,18 @@ NoXu Wallet is a Chrome extension that provides complete Kaspa wallet functional
 
 4. **Type Safety:** Full TypeScript with Zod runtime validation ensures API responses match expected schemas, preventing subtle bugs.
 
+5. **Cross-Browser Compatibility:** Using webextension-polyfill allows a single codebase to target both Chrome and Firefox.
+
 ---
 
 ## FUTURE ROADMAP
 
-### Phase 1 - Foundation (Completed)
+### Phase 1 - Foundation (Completed ✅)
 - Core wallet functionality (create, import, send, receive)
 - Security infrastructure (encryption, memory wiping, auto-lock)
 - Mainnet and testnet support
 - dApp connection framework
+- Cross-browser support (Chrome + Firefox)
 
 ### Phase 2 - Enhanced Transactions
 - Full Kaspa transaction signing (Schnorr signatures)
@@ -174,7 +187,7 @@ NoXu Wallet is a Chrome extension that provides complete Kaspa wallet functional
 - Multi-account support
 - Hardware wallet integration (Ledger)
 - Mobile companion app
-- Cross-browser support (Firefox, Edge)
+- Edge/Brave explicit support
 
 ### Phase 6 - Ecosystem Growth
 - Third-party security audit
@@ -208,7 +221,8 @@ We are passionate about Kaspa's unique BlockDAG architecture and believe the eco
 
 - **GitHub Repository:** https://github.com/CkodSa/NoXu-Wallet
 - **Demo Video:** [YouTube/Google Drive link - YOU NEED TO CREATE]
-- **Live Demo:** [Chrome Web Store link if published]
+- **Chrome Web Store:** [Link if published]
+- **Firefox Add-ons:** [Link if published]
 - **Website:** [If you have one]
 - **Twitter:** [Your Twitter]
 - **Discord:** [If applicable]
@@ -240,6 +254,29 @@ Recommended screenshots to include:
 
 ---
 
+## BUILD INSTRUCTIONS
+
+```bash
+# Clone the repository
+git clone https://github.com/CkodSa/NoXu-Wallet.git
+cd NoXu-Wallet
+
+# Install dependencies
+npm install
+
+# Build for Chrome
+npm run build:chrome
+
+# Build for Firefox
+npm run build:firefox
+
+# Build for both browsers
+npm run build:all
+# Creates dist-chrome/ and dist-firefox/
+```
+
+---
+
 ## SUBMISSION CHECKLIST
 
 Before submitting, ensure you have:
@@ -251,7 +288,8 @@ Before submitting, ensure you have:
 - [ ] Screenshots captured (YOU NEED TO DO)
 - [ ] Team members added as contributors on DoraHacks
 - [ ] All form fields filled out
-- [ ] Project builds successfully (`npm run build`)
+- [ ] Project builds successfully for Chrome (`npm run build:chrome`)
+- [ ] Project builds successfully for Firefox (`npm run build:firefox`)
 
 ---
 

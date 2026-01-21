@@ -1,4 +1,4 @@
-# Chrome Web Store Submission Checklist
+# Browser Extension Store Submission Checklist
 
 ## Before Submission
 
@@ -31,17 +31,32 @@
 ### Store Listing Assets Needed
 - [ ] Icon 128x128 (high quality)
 - [ ] Screenshots (1280x800 or 640x400)
-- [ ] Promotional tile (440x280)
+- [ ] Promotional tile (440x280) - Chrome only
 - [ ] Description (short and detailed)
 
-## Description Template
+---
 
-### Short Description (132 chars max)
+## Chrome Web Store Submission
+
+### Build
+```bash
+npm run build:chrome
+# Creates dist/ folder with Chrome manifest
+```
+
+### Store Listing Assets
+- [ ] Icon 128x128 PNG
+- [ ] Screenshots (1280x800 or 640x400)
+- [ ] Promotional tile (440x280)
+
+### Description Template
+
+#### Short Description (132 chars max)
 ```
 A non-custodial Kaspa (KAS) wallet. You control your keys. No tracking, no custody, no compromise.
 ```
 
-### Detailed Description
+#### Detailed Description
 ```
 NoXu Wallet is a secure, non-custodial browser wallet for the Kaspa blockchain.
 
@@ -73,14 +88,55 @@ IMPORTANT:
 This is open source software provided as-is. You are responsible for your own backup and security.
 ```
 
+---
+
+## Firefox Add-ons Submission
+
+### Build
+```bash
+npm run build:firefox
+# Creates dist/ folder with Firefox manifest
+```
+
+### Firefox-Specific Requirements
+- [ ] Add-on ID configured in manifest (`browser_specific_settings.gecko.id`)
+- [ ] Minimum Firefox version specified (109.0 for MV3)
+- [ ] Source code ready for review (Firefox may request it)
+
+### Store Listing Assets
+- [ ] Icon 128x128 PNG
+- [ ] Screenshots (max 1280x800)
+
+### Description Template (Same as Chrome)
+
+Use the same short and detailed descriptions as Chrome Web Store.
+
+### Firefox Add-ons Additional Notes
+- Firefox may require source code submission for review
+- Keep a clean copy of your source code ready
+- Build process should be documented and reproducible
+- `npm run build:firefox` should produce the exact dist output
+
+---
+
 ## After Submission
 
 ### Monitoring
-- [ ] Set up alerts for reviews
+- [ ] Set up alerts for reviews (both stores)
 - [ ] Monitor for copycat extensions
-- [ ] Document extension ID for verification page
+- [ ] Document extension IDs for verification page
 
 ### Post-Launch
-- [ ] Update verification guide with real extension ID
+- [ ] Update verification guide with real extension IDs (Chrome & Firefox)
 - [ ] Publish recovery documentation
 - [ ] Set up official support channel (GitHub issues)
+
+---
+
+## Quick Reference: Build Commands
+
+| Browser | Build Command | Output |
+|---------|---------------|--------|
+| Chrome | `npm run build:chrome` | `dist/` with Chrome manifest |
+| Firefox | `npm run build:firefox` | `dist/` with Firefox manifest |
+| Both | `npm run build:all` | `dist-chrome/` and `dist-firefox/` |

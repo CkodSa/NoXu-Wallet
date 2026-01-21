@@ -1,7 +1,7 @@
 # NoXu Wallet Launch Day Checklist
 
 ## Overview
-This checklist covers everything needed for a successful launch day.
+This checklist covers everything needed for a successful launch day on Chrome and Firefox.
 
 ---
 
@@ -10,9 +10,10 @@ This checklist covers everything needed for a successful launch day.
 ### Code & Build
 - [ ] All features working and tested
 - [ ] No console errors or warnings
-- [ ] Build completes without errors
+- [ ] Build completes without errors for both browsers
 - [ ] Tested on Chrome (latest)
-- [ ] Tested on fresh browser profile
+- [ ] Tested on Firefox (latest)
+- [ ] Tested on fresh browser profile (both browsers)
 - [ ] Tested create wallet flow
 - [ ] Tested import wallet flow
 - [ ] Tested send/receive (on testnet at minimum)
@@ -40,7 +41,7 @@ This checklist covers everything needed for a successful launch day.
   - Screenshot 3: Send transaction screen
   - Screenshot 4: Seed backup screen (with warning visible)
   - Screenshot 5: Settings/Privacy disclosure
-- [ ] Promotional tile 440x280 (optional but recommended)
+- [ ] Promotional tile 440x280 (Chrome only, optional but recommended)
 - [ ] Short description (132 chars max)
 - [ ] Detailed description (16,000 chars max)
 - [ ] Privacy policy URL (or inline)
@@ -51,20 +52,20 @@ This checklist covers everything needed for a successful launch day.
 ## 🚀 LAUNCH DAY
 
 ### Hour 0: Final Checks
-- [ ] Run `npm run build` one final time
-- [ ] Test the dist/ folder loads correctly
+- [ ] Run `npm run build:chrome` - verify successful
+- [ ] Run `npm run build:firefox` - verify successful
+- [ ] Test both dist folders load correctly in respective browsers
 - [ ] Verify manifest.json has correct:
   - [ ] Name: "NoXu Wallet"
   - [ ] Version: "1.0.0"
   - [ ] Description matches store listing
   - [ ] Permissions are minimal
 
-### Hour 1: Store Submission
+### Hour 1: Chrome Web Store Submission
 
-#### Chrome Web Store
 1. Go to: https://chrome.google.com/webstore/devconsole
 2. Click "New Item"
-3. Upload ZIP of `dist/` folder (exclude source maps if desired)
+3. Upload ZIP of `dist-chrome/` folder (exclude source maps if desired)
 4. Fill in all fields:
    - [ ] Title
    - [ ] Summary
@@ -85,11 +86,31 @@ This checklist covers everything needed for a successful launch day.
 
 **Note:** Review typically takes 1-3 business days. May take longer for new developers.
 
-### Hour 2: Prepare Web Presence
+### Hour 2: Firefox Add-ons Submission
+
+1. Go to: https://addons.mozilla.org/developers/
+2. Click "Submit a New Add-on"
+3. Upload ZIP of `dist-firefox/` folder
+4. Fill in all fields:
+   - [ ] Name: NoXu Wallet
+   - [ ] Summary (250 chars max)
+   - [ ] Description
+   - [ ] Categories
+   - [ ] Screenshots
+   - [ ] Icon
+5. Source code (if requested):
+   - [ ] Upload clean source code ZIP
+   - [ ] Include build instructions
+6. [ ] Submit for review
+
+**Note:** Firefox reviews can take 1-7 days. Source code review may extend this.
+
+### Hour 3: Prepare Web Presence
 
 #### Website (if launching)
 - [ ] Landing page live
 - [ ] Link to Chrome Web Store (pending = add "Coming Soon")
+- [ ] Link to Firefox Add-ons (pending = add "Coming Soon")
 - [ ] Verification guide page
 - [ ] Recovery guide page
 - [ ] Terms of Service page
@@ -99,9 +120,10 @@ This checklist covers everything needed for a successful launch day.
 - [ ] Repository is public (or decide on timing)
 - [ ] README.md includes:
   - [ ] What the wallet does
-  - [ ] Installation instructions
+  - [ ] Installation instructions (Chrome + Firefox)
+  - [ ] Build commands for both browsers
   - [ ] Security model overview
-  - [ ] Link to store listing
+  - [ ] Links to store listings
   - [ ] How to report issues
   - [ ] License
 - [ ] Issue templates created:
@@ -126,6 +148,7 @@ This checklist covers everything needed for a successful launch day.
   - [ ] GitHub issues
   - [ ] Social media mentions
   - [ ] Chrome Web Store reviews (once live)
+  - [ ] Firefox Add-ons reviews (once live)
 
 ### Community
 - [ ] Announce in Kaspa community (Discord/Telegram)
@@ -134,24 +157,24 @@ This checklist covers everything needed for a successful launch day.
 
 ### Monitoring Setup
 - [ ] Set Google Alert for "NoXu Wallet"
-- [ ] Set up periodic check for copycat extensions
-- [ ] Bookmark Chrome Web Store search for similar names
+- [ ] Set up periodic check for copycat extensions (both stores)
+- [ ] Bookmark both store searches for similar names
 
 ---
 
 ## 🎉 APPROVAL & GO-LIVE
 
-### Immediately After Approval
+### Immediately After Approval (Each Store)
 - [ ] Verify listing is live and accessible
 - [ ] Install from store and test (fresh profile)
-- [ ] Note the Extension ID for verification guide
-- [ ] Update verification.ts with real Extension ID
+- [ ] Note the Extension/Add-on ID for verification guide
+- [ ] Update verification.ts with real IDs
 
 ### Announcements
-- [ ] Update website with "Now Available" + store link
+- [ ] Update website with "Now Available" + store links
 - [ ] Tweet announcement
 - [ ] Post in Kaspa community channels
-- [ ] Update README with store link
+- [ ] Update README with store links
 
 ### Monitor First 24 Hours
 - [ ] Watch for user reports
@@ -163,8 +186,9 @@ This checklist covers everything needed for a successful launch day.
 
 ## 📊 FIRST WEEK METRICS TO TRACK
 
-- [ ] Install count
-- [ ] Uninstall count (developer dashboard)
+- [ ] Install count (Chrome)
+- [ ] Install count (Firefox)
+- [ ] Uninstall count (developer dashboards)
 - [ ] GitHub issues opened
 - [ ] Store reviews (respond to all!)
 - [ ] Support requests received
@@ -190,7 +214,7 @@ This checklist covers everything needed for a successful launch day.
 
 ### Fake Extension Appears
 - Follow fake extension response in INCIDENT_PLAYBOOK.md
-- Report immediately
+- Report immediately to both stores
 - Warn users on all channels
 
 ---
@@ -206,8 +230,10 @@ A non-custodial Kaspa wallet for your browser.
 ✅ You control your keys
 ✅ No tracking, no accounts
 ✅ Open source
+✅ Chrome + Firefox
 
-Get it: [Chrome Web Store link]
+Chrome: [Chrome Web Store link]
+Firefox: [Firefox Add-ons link]
 Verify: [Verification page link]
 
 #Kaspa #KAS #Crypto #Wallet
@@ -223,12 +249,17 @@ What it is:
 • Non-custodial (you control your keys)
 • No tracking or analytics
 • Open source
-• Chrome extension
+• Works on Chrome AND Firefox
 
 Important:
-• Only install from the official Chrome Web Store
-• Extension ID: [ID]
+• Only install from official stores
+• Chrome Extension ID: [ID]
+• Firefox Add-on ID: [ID]
 • Verify at: [link]
+
+Download:
+• Chrome: [link]
+• Firefox: [link]
 
 Would love feedback! Report issues on GitHub: [link]
 
@@ -238,6 +269,7 @@ Thanks for being part of the Kaspa community 🙏
 ### GitHub README Badge
 ```markdown
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/YOUR_EXTENSION_ID)](https://chrome.google.com/webstore/detail/YOUR_EXTENSION_ID)
+[![Firefox Add-on](https://img.shields.io/amo/v/YOUR_ADDON_ID)](https://addons.mozilla.org/firefox/addon/YOUR_ADDON_ID/)
 ```
 
 ---
@@ -246,9 +278,10 @@ Thanks for being part of the Kaspa community 🙏
 
 After everything is live:
 - [ ] Extension available in Chrome Web Store
+- [ ] Add-on available in Firefox Add-ons
 - [ ] Website live with all documentation
 - [ ] GitHub repository accessible
-- [ ] Verification guide updated with real Extension ID
+- [ ] Verification guide updated with real Extension IDs
 - [ ] At least one announcement posted
 - [ ] Monitoring in place
 - [ ] First user feedback received

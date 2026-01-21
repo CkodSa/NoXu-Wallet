@@ -3,12 +3,12 @@
 
 export const VERIFICATION_GUIDE = {
   lastUpdated: "January 2026",
-  version: "1.0",
+  version: "1.1",
 
   // UPDATE THESE WHEN YOU PUBLISH
   officialSources: {
     chromeExtensionId: "YOUR_EXTENSION_ID_HERE", // Update after Chrome Web Store publish
-    firefoxAddonId: "YOUR_ADDON_ID_HERE", // Update after Firefox publish (if applicable)
+    firefoxAddonId: "YOUR_ADDON_ID_HERE", // Update after Firefox Add-ons publish
     officialWebsite: "https://noxuwallet.com", // Update with your real domain
     officialGitHub: "https://github.com/YOUR_ORG/noxu-wallet", // Update with real repo
     officialTwitter: "@NoxuWallet", // Update with real handle
@@ -27,7 +27,12 @@ In Chrome:
 1. Go to chrome://extensions
 2. Enable "Developer mode" (top right)
 3. Find NoXu Wallet
-4. The ID should be: [OFFICIAL_ID]
+4. The ID should be: [OFFICIAL_CHROME_ID]
+
+In Firefox:
+1. Go to about:addons
+2. Click on NoXu Wallet
+3. The ID should be: [OFFICIAL_FIREFOX_ID]
 
 If the ID is different, you have a FAKE extension. Remove it immediately.
 
@@ -37,8 +42,8 @@ STEP 2: Only Install from Official Sources
 
 SAFE:
 ✅ Chrome Web Store (search "NoXu Wallet")
-✅ Our official website link to the store
-✅ Firefox Add-ons (if available)
+✅ Firefox Add-ons (search "NoXu Wallet")
+✅ Our official website link to the stores
 
 DANGEROUS - NEVER USE:
 ❌ Direct download links
@@ -85,7 +90,7 @@ WHAT TO DO IF YOU INSTALLED A FAKE
    b. Transfer ALL funds to the new address
    c. The old wallet is compromised forever
 3. Remove the fake extension
-4. Report it to the Chrome Web Store
+4. Report it to the Chrome Web Store or Firefox Add-ons
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -94,6 +99,7 @@ REPORT SCAMS
 Help protect others by reporting fake extensions and scam websites.
 
 • Chrome Web Store: Use "Report abuse" on the extension page
+• Firefox Add-ons: Use "Report this add-on" on the add-on page
 • GitHub: Open an issue on our official repository
 • Twitter: Report to @NoxuWallet
 

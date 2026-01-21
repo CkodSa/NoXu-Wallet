@@ -1,10 +1,12 @@
 // Content script - bridges page <-> background for dApp provider
 
+import browser from "webextension-polyfill";
+
 // Inject the provider into the page (window.kaspa)
 (function injectProvider() {
   try {
     const script = document.createElement("script");
-    script.src = chrome.runtime.getURL("provider.js");
+    script.src = browser.runtime.getURL("provider.js");
     script.async = false;
     (document.documentElement || document.head || document.body).appendChild(script);
     script.remove();
@@ -26,7 +28,7 @@ window.addEventListener("message", async (event) => {
   if (!payload || typeof payload.type !== "string") return;
 
   try {
-    const response = await chrome.runtime.sendMessage(payload);
+    const response = await browser.runtime.sendMessage(payload);
     window.postMessage(
       {
         source: "kaspa:content",
@@ -50,7 +52,7 @@ window.addEventListener("message", async (event) => {
 });
 
 // Background -> Page relay
-chrome.runtime.onMessage.addListener((message) => {
+browser.runtime.onMessage.addListener((message) => {
   if (message && message.type === "PROVIDER_UPDATE") {
     window.postMessage(
       {

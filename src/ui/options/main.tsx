@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
+import browser from "webextension-polyfill";
 import {
   DEFAULT_NETWORK,
   NETWORKS,
@@ -8,7 +9,7 @@ import {
 } from "../../core/networks";
 
 async function rpc(type: string, payload?: any) {
-  return chrome.runtime.sendMessage({ type, payload });
+  return browser.runtime.sendMessage({ type, payload });
 }
 
 function Options() {
@@ -19,14 +20,14 @@ function Options() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    rpc("GET_CUSTOM_RPC").then((res) => {
+    rpc("GET_CUSTOM_RPC").then((res: any) => {
       if (res?.ok && res.customRpcUrls) {
         setCustomRpcUrls(res.customRpcUrls);
         setTestnetRpc(res.customRpcUrls.testnet || "");
         setMainnetRpc(res.customRpcUrls.mainnet || "");
       }
     });
-    rpc("GET_STATE").then((res) => {
+    rpc("GET_STATE").then((res: any) => {
       if (res?.ok && res.network) {
         setNetwork(res.network);
       }
@@ -41,7 +42,7 @@ function Options() {
   const handleSaveRpc = async (networkName: KaspaNetwork, rpcUrl: string) => {
     setSaving(true);
     const trimmed = rpcUrl.trim();
-    const res = await rpc("SET_CUSTOM_RPC", {
+    const res: any = await rpc("SET_CUSTOM_RPC", {
       network: networkName,
       rpcUrl: trimmed || null,
     });
@@ -53,7 +54,7 @@ function Options() {
 
   const handleResetRpc = async (networkName: KaspaNetwork) => {
     setSaving(true);
-    const res = await rpc("SET_CUSTOM_RPC", { network: networkName, rpcUrl: null });
+    const res: any = await rpc("SET_CUSTOM_RPC", { network: networkName, rpcUrl: null });
     if (res?.ok) {
       setCustomRpcUrls(res.customRpcUrls || {});
       if (networkName === "testnet") setTestnetRpc("");

@@ -1,12 +1,12 @@
 # NoXu Wallet
 
-A security-first, non-custodial Chrome extension wallet for the Kaspa blockchain.
+A security-first, non-custodial browser extension wallet for the Kaspa blockchain.
 
 ![NoXu Wallet](src/extension/icons/icon128.png)
 
 ## Overview
 
-NoXu Wallet enables users to securely manage their KAS holdings with industry-leading security practices. Built specifically for the Kaspa blockchain, it implements military-grade encryption (Argon2id + AES-256-GCM), automatic memory wiping of sensitive data, and a modern Chrome Manifest V3 architecture.
+NoXu Wallet enables users to securely manage their KAS holdings with industry-leading security practices. Built specifically for the Kaspa blockchain, it implements military-grade encryption (Argon2id + AES-256-GCM), automatic memory wiping of sensitive data, and supports both Chrome and Firefox browsers.
 
 **Your keys, your crypto. Always.**
 
@@ -27,7 +27,8 @@ NoXu Wallet enables users to securely manage their KAS holdings with industry-le
 - **No Tracking** - Zero analytics or telemetry
 
 ### Technical
-- **Chrome Manifest V3** - Modern extension architecture with service workers
+- **Cross-Browser Support** - Works on Chrome and Firefox
+- **Chrome Manifest V3 / Firefox MV3** - Modern extension architecture
 - **TypeScript** - Fully type-safe codebase
 - **BIP39/BIP44 Compliant** - Standard key derivation with Kaspa's SLIP-44 coin type (972)
 - **Zod Validation** - Runtime API response validation for reliability
@@ -39,7 +40,7 @@ NoXu Wallet enables users to securely manage their KAS holdings with industry-le
 │  UI Layer (React 18 + Zustand)                              │
 │  └── Popup Interface, Settings, State Management            │
 ├─────────────────────────────────────────────────────────────┤
-│  Extension Layer (Chrome MV3)                               │
+│  Extension Layer (Chrome MV3 / Firefox MV3)                 │
 │  └── Background Service Worker, Content Script, RPC         │
 ├─────────────────────────────────────────────────────────────┤
 │  Core Layer (Framework-Agnostic)                            │
@@ -63,10 +64,11 @@ src/
 │   │   └── secure.ts        # Memory wiping utilities
 │   └── kaspa/
 │       └── client.ts        # REST API client with Zod validation
-├── extension/               # Chrome MV3 extension
+├── extension/               # Browser extension
 │   ├── background/          # Service worker
 │   ├── contentScript/       # dApp bridge
-│   └── manifest.json        # Extension manifest
+│   ├── manifest.chrome.json # Chrome manifest
+│   └── manifest.firefox.json # Firefox manifest
 ├── ui/                      # React UI
 │   ├── popup/               # Main wallet interface
 │   ├── options/             # Settings page
@@ -83,14 +85,15 @@ src/
 | State | Zustand 4.5 |
 | Crypto | @scure/bip32, @scure/bip39, @noble/hashes |
 | Validation | Zod 3.22 |
-| Platform | Chrome Extension (Manifest V3) |
+| Cross-Browser | webextension-polyfill |
+| Platform | Chrome Extension (MV3), Firefox Add-on (MV3) |
 
 ## Getting Started
 
 ### Prerequisites
 - Node.js 18+
 - npm or yarn
-- Chrome browser
+- Chrome or Firefox browser
 
 ### Installation
 
@@ -102,16 +105,39 @@ cd NoXu-Wallet
 # Install dependencies
 npm install
 
-# Build the extension
-npm run build
+# Build for Chrome
+npm run build:chrome
+
+# Build for Firefox
+npm run build:firefox
+
+# Build for both browsers
+npm run build:all
 ```
+
+### Build Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run build` | Build for Chrome (default) |
+| `npm run build:chrome` | Build for Chrome → `dist/` |
+| `npm run build:firefox` | Build for Firefox → `dist/` |
+| `npm run build:all` | Build both → `dist-chrome/` and `dist-firefox/` |
 
 ### Load in Chrome
 
 1. Open `chrome://extensions` in Chrome
 2. Enable "Developer mode" (toggle in top right)
 3. Click "Load unpacked"
-4. Select the `dist/` folder
+4. Select the `dist/` or `dist-chrome/` folder
+
+### Load in Firefox
+
+1. Open `about:debugging#/runtime/this-firefox` in Firefox
+2. Click "Load Temporary Add-on..."
+3. Select the `manifest.json` file inside `dist/` or `dist-firefox/` folder
+
+For permanent installation in Firefox, submit to [Firefox Add-ons](https://addons.mozilla.org/).
 
 ### Development
 
@@ -119,8 +145,11 @@ npm run build
 # Start development server with hot reload
 npm run dev
 
-# Build for production
-npm run build
+# Build for production (Chrome)
+npm run build:chrome
+
+# Build for production (Firefox)
+npm run build:firefox
 ```
 
 ## Security
@@ -142,12 +171,22 @@ NoXu Wallet is built with security as the primary concern. See [SECURITY_AUDIT.m
 - HTTPS-only custom RPC URLs
 - Console security warnings
 
+## Browser Support
+
+| Browser | Status | Manifest |
+|---------|--------|----------|
+| Chrome | ✅ Supported | Manifest V3 (service_worker) |
+| Firefox | ✅ Supported | Manifest V3 (background.scripts) |
+| Edge | ✅ Compatible | Uses Chrome build |
+| Brave | ✅ Compatible | Uses Chrome build |
+
 ## Roadmap
 
 - [x] Core wallet functionality (create, import, send, receive)
 - [x] Security infrastructure (encryption, memory wiping, auto-lock)
 - [x] Mainnet and testnet support
 - [x] dApp connection framework
+- [x] Cross-browser support (Chrome + Firefox)
 - [ ] Full Kaspa transaction signing (Schnorr signatures)
 - [ ] KRC20 token support
 - [ ] Hardware wallet integration (Ledger)
