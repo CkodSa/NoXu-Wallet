@@ -451,6 +451,38 @@ textarea.input:focus {
   color: var(--muted);
 }
 
+.token-badge {
+  font-size: 9px;
+  background: rgba(110, 199, 187, 0.2);
+  color: var(--accent);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+.hide-small-btn {
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.hide-small-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.hide-small-btn.active {
+  background: rgba(110, 199, 187, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .token-balance {
   font-size: 13px;
   font-weight: 600;
@@ -1282,4 +1314,201 @@ textarea.input:focus {
 .tx-outgoing {
   color: #fca5a5;
   font-weight: 600;
+}
+
+/* ==================== New Collapsible Settings Sections ==================== */
+
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+}
+
+.settings-section {
+  border-radius: 14px;
+  background: rgba(7, 10, 12, 0.85);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.settings-section:hover {
+  border-color: rgba(110, 199, 187, 0.4);
+}
+
+.settings-section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.settings-section-header:hover {
+  background: rgba(110, 199, 187, 0.08);
+}
+
+.settings-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-section-icon {
+  font-size: 16px;
+  width: 22px;
+  text-align: center;
+}
+
+.settings-chevron {
+  font-size: 10px;
+  color: var(--muted);
+  transition: transform 0.2s ease;
+}
+
+.settings-chevron.expanded {
+  transform: rotate(180deg);
+}
+
+.settings-section-content {
+  padding: 0 14px 14px;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.settings-subsection {
+  padding: 10px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.settings-subsection:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.settings-subsection-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Settings Badge (for network indicator, watch count, etc.) */
+.settings-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(110, 199, 187, 0.15);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.settings-badge.active {
+  background: rgba(34, 197, 94, 0.15);
+  color: #86efac;
+}
+
+/* Network Toggle Buttons */
+.network-toggle {
+  display: flex;
+  gap: 6px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(7, 10, 12, 0.95);
+  border: 1px solid var(--border-subtle);
+}
+
+.network-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.network-btn.active {
+  background: linear-gradient(135deg, #6ec7bb, #8fe4d9);
+  color: #02110e;
+}
+
+.network-btn:hover:not(.active) {
+  color: var(--text);
+  background: rgba(110, 199, 187, 0.1);
+}
+
+/* RPC Configuration */
+.rpc-config {
+  margin-bottom: 12px;
+}
+
+.rpc-config:last-child {
+  margin-bottom: 0;
+}
+
+.rpc-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.rpc-config .input {
+  font-size: 11px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+
+.rpc-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.rpc-actions .secondary-btn.pill {
+  font-size: 11px;
+  padding: 6px 12px;
+}
+
+/* Danger Button */
+.danger-btn {
+  border-color: rgba(249, 115, 115, 0.4) !important;
+  color: #fca5a5 !important;
+}
+
+.danger-btn:hover {
+  background: rgba(249, 115, 115, 0.1) !important;
+  border-color: rgba(249, 115, 115, 0.6) !important;
 }

@@ -4,6 +4,7 @@ import browser from "webextension-polyfill";
 import { Wallet } from "../../core/wallet";
 import { DEFAULT_NETWORK, getNetworkConfig } from "../../core/networks";
 import { KaspaClient } from "../../core/kaspa/client";
+import { KRC20Client } from "../../core/kaspa/krc20-client";
 import type { RpcMessage } from "../messages";
 import {
   DEFAULT_SECURITY_FEATURES,
@@ -677,6 +678,87 @@ browser.runtime.onMessage.addListener(
                 (tx) => tx.status === "pending"
               ),
             };
+          }
+
+          // ==================== KRC-20 TOKEN FEATURES ====================
+
+          case "GET_TOKEN_BALANCES": {
+            const address = message.payload?.address || wallet.getAccount()?.address;
+            if (!address) {
+              return { ok: false, error: "No address provided and wallet is locked" };
+            }
+            try {
+              const krc20Client = new KRC20Client(wallet.getNetwork());
+              const balances = await krc20Client.getTokenBalances(address);
+              // Convert BigInt to string for JSON serialization
+              const serializedBalances = balances.map((b) => ({
+                tick: b.tick,
+                balance: b.balance.toString(),
+                locked: b.locked.toString(),
+                decimals: b.decimals,
+              }));
+              return { ok: true, balances: serializedBalances };
+            } catch (err: any) {
+              return { ok: false, error: err?.message || "Failed to fetch token balances" };
+            }
+          }
+
+          case "GET_TOKEN_INFO": {
+            const { tick } = message.payload;
+            if (!tick) {
+              return { ok: false, error: "Token ticker is required" };
+            }
+            try {
+              const krc20Client = new KRC20Client(wallet.getNetwork());
+              const info = await krc20Client.getTokenInfo(tick);
+              if (!info) {
+                return { ok: false, error: "Token not found" };
+              }
+              // Convert BigInt to string for JSON serialization
+              return {
+                ok: true,
+                info: {
+                  tick: info.tick,
+                  maxSupply: info.maxSupply.toString(),
+                  mintLimit: info.mintLimit.toString(),
+                  preMine: info.preMine.toString(),
+                  deployer: info.deployer,
+                  decimals: info.decimals,
+                  minted: info.minted.toString(),
+                  state: info.state,
+                  holderTotal: info.holderTotal,
+                  transferTotal: info.transferTotal,
+                  mintTotal: info.mintTotal,
+                },
+              };
+            } catch (err: any) {
+              return { ok: false, error: err?.message || "Failed to fetch token info" };
+            }
+          }
+
+          case "GET_TOKEN_LIST": {
+            const limit = message.payload?.limit || 50;
+            try {
+              const krc20Client = new KRC20Client(wallet.getNetwork());
+              const tokens = await krc20Client.getTokenList(limit);
+              // Convert BigInt to string for JSON serialization
+              const serializedTokens = tokens.map((t) => ({
+                tick: t.tick,
+                maxSupply: t.maxSupply.toString(),
+                mintLimit: t.mintLimit.toString(),
+                preMine: t.preMine.toString(),
+                deployer: t.deployer,
+                decimals: t.decimals,
+                minted: t.minted.toString(),
+                state: t.state,
+                holderTotal: t.holderTotal,
+                transferTotal: t.transferTotal,
+                mintTotal: t.mintTotal,
+              }));
+              return { ok: true, tokens: serializedTokens };
+            } catch (err: any) {
+              return { ok: false, error: err?.message || "Failed to fetch token list" };
+            }
           }
 
           default: {

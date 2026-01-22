@@ -32,7 +32,11 @@ export type MessageType =
   | "QUEUE_DELAYED_TX"
   | "CANCEL_DELAYED_TX"
   | "EXECUTE_DELAYED_TX"
-  | "GET_PENDING_TXS";
+  | "GET_PENDING_TXS"
+  // KRC-20 Token Features
+  | "GET_TOKEN_BALANCES"
+  | "GET_TOKEN_INFO"
+  | "GET_TOKEN_LIST";
 
 export type RpcMessage<T = any> = {
   type: MessageType;

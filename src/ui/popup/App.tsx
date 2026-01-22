@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import browser from "webextension-polyfill";
-import { useWalletStore } from "../store";
+import { useWalletStore, type TokenBalance } from "../store";
 import type { DerivedAccount } from "../../core/crypto/mnemonic";
 import {
   getStaticTokens,
   type KaspaNetwork,
   type TokenMeta
 } from "../../core/tokens";
+import { formatTokenBalance } from "../../core/kaspa/krc20-client";
 import {
   formatTimeRemaining,
   type SecurityFeaturesState,
@@ -28,11 +29,7 @@ type MainPage =
   | "activity"
   | "settings"
   | "token"
-  | "security"
-  | "watchlist"
   | "watchdetail";
-
-type SecurityTab = "duress" | "watchonly" | "timedelay";
 
 async function rpc(type: string, payload?: any) {
   return browser.runtime.sendMessage({ type, payload });
@@ -283,6 +280,126 @@ const SettingsIcon: React.FC = () => (
   </svg>
 );
 
+/* ------------------------- Settings section icons ------------------------- */
+
+const WalletIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" width={16} height={16}>
+    <rect
+      x={3}
+      y={6}
+      width={18}
+      height={14}
+      rx={2}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M3 10h18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+    />
+    <circle cx={16} cy={14} r={1.5} fill="currentColor" />
+  </svg>
+);
+
+const NetworkIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" width={16} height={16}>
+    <circle
+      cx={12}
+      cy={12}
+      r={9}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+    />
+    <path
+      d="M3 12h18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+    />
+    <path
+      d="M12 3c-2.5 3-4 6.5-4 9s1.5 6 4 9c2.5-3 4-6.5 4-9s-1.5-6-4-9z"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const ShieldIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" width={16} height={16}>
+    <path
+      d="M12 3L4 7v5c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V7l-8-4z"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M9 12l2 2 4-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const EyeIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" width={16} height={16}>
+    <path
+      d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <circle
+      cx={12}
+      cy={12}
+      r={3}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+    />
+  </svg>
+);
+
+const InfoIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" width={16} height={16}>
+    <circle
+      cx={12}
+      cy={12}
+      r={9}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+    />
+    <line
+      x1={12}
+      y1={16}
+      x2={12}
+      y2={12}
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+    />
+    <circle cx={12} cy={8} r={1} fill="currentColor" />
+  </svg>
+);
+
 /* ------------------------- Layout helpers ------------------------- */
 
 const ScreenLayout: React.FC<{
@@ -352,7 +469,16 @@ const WordGrid: React.FC<{ words: string[] }> = ({ words }) => (
 /* ------------------------- Main inner app ------------------------- */
 
 function InnerApp() {
-  const { account, setAccount, setBalance, balance } = useWalletStore();
+  const {
+    account,
+    setAccount,
+    setBalance,
+    balance,
+    tokenBalances,
+    setTokenBalances,
+    tokenBalancesLoading,
+    setTokenBalancesLoading,
+  } = useWalletStore();
 
   // Hooks – keep order fixed
   const [onboardingStep, setOnboardingStep] =
@@ -385,7 +511,6 @@ function InnerApp() {
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Security Features State
-  const [securityTab, setSecurityTab] = useState<SecurityTab>("duress");
   const [securityFeatures, setSecurityFeatures] = useState<SecurityFeaturesState | null>(null);
   const [isDuressMode, setIsDuressMode] = useState(false);
   const [duressPin, setDuressPin] = useState("");
@@ -407,9 +532,37 @@ function InnerApp() {
   const [watchHistory, setWatchHistory] = useState<any[]>([]); // Transaction history for selected watch address
   const [watchHistoryLoading, setWatchHistoryLoading] = useState(false);
 
+  // Settings section expand/collapse state
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    wallet: false,
+    network: false,
+    security: false,
+    portfolio: false,
+    about: false,
+  });
+
+  // Network settings state (moved from options page)
+  const [customTestnetRpc, setCustomTestnetRpc] = useState("");
+  const [customMainnetRpc, setCustomMainnetRpc] = useState("");
+  const [savingRpc, setSavingRpc] = useState(false);
+
+  // Token display settings
+  const [hideSmallBalances, setHideSmallBalances] = useState(false);
+  const SMALL_BALANCE_THRESHOLD = 1; // Hide tokens worth less than 1 unit
+
   useEffect(() => {
     browser.storage.local.get([STORAGE_SEED_SEEN_KEY]).then((res) => {
       if (res && res[STORAGE_SEED_SEEN_KEY]) setSeedSeen(true);
+    });
+  }, []);
+
+  // Load custom RPC URLs
+  useEffect(() => {
+    rpc("GET_CUSTOM_RPC").then((res: any) => {
+      if (res?.ok && res.customRpcUrls) {
+        setCustomTestnetRpc(res.customRpcUrls.testnet || "");
+        setCustomMainnetRpc(res.customRpcUrls.mainnet || "");
+      }
     });
   }, []);
 
@@ -511,8 +664,18 @@ function InnerApp() {
       rpc("GET_HISTORY").then((res) => {
         if (res?.ok) setHistory(res.history);
       });
+      // Fetch KRC-20 token balances
+      setTokenBalancesLoading(true);
+      rpc("GET_TOKEN_BALANCES").then((res) => {
+        if (res?.ok && res.balances) {
+          setTokenBalances(res.balances);
+        }
+        setTokenBalancesLoading(false);
+      }).catch(() => {
+        setTokenBalancesLoading(false);
+      });
     }
-  }, [account, setBalance]);
+  }, [account, setBalance, setTokenBalances, setTokenBalancesLoading]);
 
   const handleCreateFlow = async () => {
     setError(undefined);
@@ -748,18 +911,49 @@ function InnerApp() {
     onboardingStep === "seed" ||
     onboardingStep === "confirm";
 
-  // Token list (static for now, per network)
-  const tokenList: TokenMeta[] = getStaticTokens(network);
+  // Token list - combine native KAS with real KRC-20 tokens
+  const staticTokens: TokenMeta[] = getStaticTokens(network);
+  const kasToken = staticTokens.find((t) => t.symbol === "KAS");
 
-  const tokens = tokenList.map((t) => ({
-    token: t,
-    amount:
-      t.symbol === "KAS"
-        ? balance !== undefined
-          ? balance / 1e8
-          : 0
-        : 0
+  // Build dynamic token list from fetched KRC-20 balances
+  const krc20Tokens: TokenMeta[] = (tokenBalances || []).map((tb: TokenBalance) => ({
+    id: `krc20_${tb.tick}`,
+    symbol: tb.tick.toUpperCase(),
+    name: tb.tick,
+    decimals: tb.decimals,
+    kind: "krc20" as const,
+    visibleByDefault: true,
   }));
+
+  // Combine: KAS first, then real KRC-20 tokens (exclude demo tokens on mainnet when we have real tokens)
+  const tokenList: TokenMeta[] = [
+    ...(kasToken ? [kasToken] : []),
+    ...krc20Tokens,
+    // Only show demo tokens on testnet and when no real tokens exist
+    ...(network === "testnet" && krc20Tokens.length === 0
+      ? staticTokens.filter((t) => t.kind === "krc20" && t.testnetOnly)
+      : []),
+  ];
+
+  const tokens = tokenList.map((t) => {
+    if (t.symbol === "KAS") {
+      return {
+        token: t,
+        amount: balance !== undefined ? balance / 1e8 : 0,
+      };
+    }
+    // Find KRC-20 balance
+    const krc20Balance = tokenBalances?.find(
+      (tb: TokenBalance) => tb.tick.toUpperCase() === t.symbol
+    );
+    if (krc20Balance) {
+      return {
+        token: t,
+        amount: formatTokenBalance(BigInt(krc20Balance.balance), krc20Balance.decimals),
+      };
+    }
+    return { token: t, amount: 0 };
+  });
 
   /* ---------- reusable card chunks ---------- */
 
@@ -1231,163 +1425,589 @@ function InnerApp() {
     </div>
   );
 
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const handleSaveRpc = async (networkName: string, rpcUrl: string) => {
+    setSavingRpc(true);
+    const trimmed = rpcUrl.trim();
+    await rpc("SET_CUSTOM_RPC", {
+      network: networkName,
+      rpcUrl: trimmed || null,
+    });
+    setSavingRpc(false);
+    showSaveSuccess("RPC endpoint saved");
+  };
+
+  const handleNetworkSwitch = async (newNetwork: KaspaNetwork) => {
+    await rpc("SWITCH_NETWORK", { network: newNetwork });
+    setNetwork(newNetwork);
+    showSaveSuccess(`Switched to ${newNetwork}`);
+  };
+
   const SettingsCard = (
-    <div className="card" style={{ display: "grid", gap: 10 }}>
-      <div className="card-title">Export seed phrase</div>
-      {!exportMode && (
-        <button
-          className="secondary-btn"
-          onClick={() => setExportMode(true)}
-        >
-          Export with password
-        </button>
+    <div className="card settings-card">
+      {/* Save Success Message */}
+      {saveSuccess && (
+        <div className="save-success-banner">{saveSuccess}</div>
       )}
-      {exportMode && (
-        <div style={{ display: "grid", gap: 8 }}>
-          <input
-            className="input"
-            type="password"
-            placeholder="Enter password to decrypt"
-            value={exportPassword}
-            onChange={(e) => setExportPassword(e.target.value)}
-          />
-          <button
-            className="primary-btn"
-            onClick={async () => {
-              const res = await rpc("EXPORT_SEED", {
-                password: exportPassword
-              });
-              if (res?.ok) {
-                setExportedSeed(res.mnemonic);
-              } else {
-                setError(res?.error || "Unable to export");
-              }
-            }}
-          >
-            Decrypt and show once
-          </button>
-          {exportedSeed && (
-            <div className="card inner seed-text">
-              <div className="muted small">
-                Copy immediately; this will not persist here.
-              </div>
-              <div>{exportedSeed}</div>
-              <button
-                className="secondary-btn"
-                onClick={() =>
-                  navigator.clipboard.writeText(exportedSeed)
-                }
-              >
-                Copy seed
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-      <div className="muted small">
-        Seed only reveals after password; it isn't persisted in UI.
-      </div>
-      <button
-        className="secondary-btn"
-        onClick={() => {
-          rpc("LOCK");
-          setAccount(undefined);
-          setMainPage("home");
-          setOnboardingStep("login");
-        }}
-      >
-        Lock wallet
-      </button>
 
-      {/* Privacy & Security Disclosure */}
-      <div className="settings-divider" />
-      <div className="card-title">Privacy & Security</div>
-      <div className="privacy-disclosure">
-        <div className="privacy-item">
-          <span className="privacy-icon">🔐</span>
-          <span>Your keys never leave this device</span>
-        </div>
-        <div className="privacy-item">
-          <span className="privacy-icon">🚫</span>
-          <span>No analytics or tracking</span>
-        </div>
-        <div className="privacy-item">
-          <span className="privacy-icon">📡</span>
-          <span>Only connects to Kaspa RPC for balances/transactions</span>
-        </div>
-        <div className="privacy-item">
-          <span className="privacy-icon">⚠️</span>
-          <span>We cannot recover your wallet - backup your seed phrase!</span>
-        </div>
-      </div>
-      <div className="muted small" style={{ marginTop: 4 }}>
-        NoXu is non-custodial. You have full control and responsibility.
-      </div>
-
-      {/* Advanced Security Features */}
-      <div className="settings-divider" />
-      <div className="card-title">Advanced Security</div>
-      <button
-        className="primary-btn"
-        style={{ fontSize: 13 }}
-        onClick={() => setMainPage("security")}
-      >
-        Security Features
-      </button>
-      <div className="muted small" style={{ marginTop: 4 }}>
-        Configure duress mode and time-delayed transactions.
-      </div>
-
-      {/* Portfolio Tools */}
-      <div className="settings-divider" />
-      <div className="card-title">Portfolio Tools</div>
-      <button
-        className="secondary-btn"
-        style={{ fontSize: 13 }}
-        onClick={() => {
-          setMainPage("security");
-          setSecurityTab("watchonly");
-        }}
-      >
-        Watch-Only Addresses
-      </button>
-      <div className="muted small" style={{ marginTop: 4 }}>
-        Track any Kaspa address without importing keys.
-      </div>
-
-      {/* Pending Transactions Indicator */}
+      {/* Pending Transactions Alert - Always visible at top if present */}
       {pendingTransactions.length > 0 && (
         <div
           className="warning-banner"
-          style={{ cursor: "pointer" }}
+          style={{ cursor: "pointer", marginBottom: 12 }}
           onClick={() => {
-            setMainPage("security");
-            setSecurityTab("timedelay");
+            setExpandedSections(prev => ({ ...prev, security: true }));
           }}
         >
           <strong>{pendingTransactions.length} Pending Transaction{pendingTransactions.length > 1 ? "s" : ""}</strong>
-          <br />
-          Click to view and manage queued transactions.
+          <div className="muted small" style={{ color: "#fcd34d", marginTop: 4 }}>
+            Expand Security section to manage queued transactions
+          </div>
         </div>
       )}
 
-      {/* Verify Installation Link */}
-      <div className="settings-divider" />
-      <button
-        className="secondary-btn"
-        style={{ fontSize: 12 }}
-        onClick={() => {
-          // Open Chrome extensions page so user can verify extension ID
-          // Open extensions page - works in both Chrome and Firefox
-          const isFirefox = navigator.userAgent.includes("Firefox");
-          const extensionsUrl = isFirefox ? "about:addons" : "chrome://extensions";
-          browser.tabs.create({ url: extensionsUrl });
-        }}
-      >
-        Verify Installation (check extension ID)
-      </button>
-      <div className="muted small" style={{ marginTop: 4 }}>
-        Compare the extension ID in chrome://extensions with the official ID on our website.
+      {/* ==================== WALLET SECTION ==================== */}
+      <div className="settings-section">
+        <button
+          className="settings-section-header"
+          onClick={() => toggleSection("wallet")}
+        >
+          <div className="settings-section-title">
+            <span className="settings-section-icon"><WalletIcon /></span>
+            Wallet
+          </div>
+          <span className={`settings-chevron ${expandedSections.wallet ? "expanded" : ""}`}>▼</span>
+        </button>
+
+        {expandedSections.wallet && (
+          <div className="settings-section-content">
+            <div className="settings-subsection">
+              <div className="settings-subsection-title">Export Seed Phrase</div>
+              {!exportMode ? (
+                <button
+                  className="secondary-btn"
+                  onClick={() => setExportMode(true)}
+                >
+                  Export with password
+                </button>
+              ) : (
+                <div style={{ display: "grid", gap: 8 }}>
+                  <input
+                    className="input"
+                    type="password"
+                    placeholder="Enter password to decrypt"
+                    value={exportPassword}
+                    onChange={(e) => setExportPassword(e.target.value)}
+                  />
+                  <button
+                    className="primary-btn"
+                    onClick={async () => {
+                      const res = await rpc("EXPORT_SEED", {
+                        password: exportPassword
+                      });
+                      if (res?.ok) {
+                        setExportedSeed(res.mnemonic);
+                      } else {
+                        setError(res?.error || "Unable to export");
+                      }
+                    }}
+                  >
+                    Decrypt and show once
+                  </button>
+                  {exportedSeed && (
+                    <div className="card inner seed-text">
+                      <div className="muted small">
+                        Copy immediately; this will not persist here.
+                      </div>
+                      <div>{exportedSeed}</div>
+                      <button
+                        className="secondary-btn"
+                        onClick={() =>
+                          navigator.clipboard.writeText(exportedSeed)
+                        }
+                      >
+                        Copy seed
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    className="secondary-btn"
+                    style={{ fontSize: 11 }}
+                    onClick={() => {
+                      setExportMode(false);
+                      setExportPassword("");
+                      setExportedSeed(undefined);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+              <div className="muted small" style={{ marginTop: 6 }}>
+                Seed only reveals after password; never persisted in UI.
+              </div>
+            </div>
+
+            <div className="settings-subsection">
+              <button
+                className="secondary-btn danger-btn"
+                onClick={() => {
+                  rpc("LOCK");
+                  setAccount(undefined);
+                  setMainPage("home");
+                  setOnboardingStep("login");
+                }}
+              >
+                Lock Wallet
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ==================== NETWORK SECTION ==================== */}
+      <div className="settings-section">
+        <button
+          className="settings-section-header"
+          onClick={() => toggleSection("network")}
+        >
+          <div className="settings-section-title">
+            <span className="settings-section-icon"><NetworkIcon /></span>
+            Network
+            <span className="settings-badge">{network}</span>
+          </div>
+          <span className={`settings-chevron ${expandedSections.network ? "expanded" : ""}`}>▼</span>
+        </button>
+
+        {expandedSections.network && (
+          <div className="settings-section-content">
+            <div className="settings-subsection">
+              <div className="settings-subsection-title">Active Network</div>
+              <div className="network-toggle">
+                <button
+                  className={`network-btn ${network === "mainnet" ? "active" : ""}`}
+                  onClick={() => handleNetworkSwitch("mainnet")}
+                >
+                  Mainnet
+                </button>
+                <button
+                  className={`network-btn ${network === "testnet" ? "active" : ""}`}
+                  onClick={() => handleNetworkSwitch("testnet")}
+                >
+                  Testnet
+                </button>
+              </div>
+            </div>
+
+            <div className="settings-subsection">
+              <div className="settings-subsection-title">Custom RPC Endpoints</div>
+              <div className="muted small" style={{ marginBottom: 8 }}>
+                Leave empty to use default. Custom URLs persist across sessions.
+              </div>
+
+              <div className="rpc-config">
+                <label className="rpc-label">Mainnet RPC</label>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="https://api.kaspa.org (default)"
+                  value={customMainnetRpc}
+                  onChange={(e) => setCustomMainnetRpc(e.target.value)}
+                />
+                <div className="rpc-actions">
+                  <button
+                    className="secondary-btn pill"
+                    onClick={() => handleSaveRpc("mainnet", customMainnetRpc)}
+                    disabled={savingRpc}
+                  >
+                    Save
+                  </button>
+                  <button
+                    className="secondary-btn pill"
+                    onClick={() => {
+                      setCustomMainnetRpc("");
+                      handleSaveRpc("mainnet", "");
+                    }}
+                    disabled={savingRpc}
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              <div className="rpc-config">
+                <label className="rpc-label">Testnet RPC</label>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="https://api-tn.kaspa.org (default)"
+                  value={customTestnetRpc}
+                  onChange={(e) => setCustomTestnetRpc(e.target.value)}
+                />
+                <div className="rpc-actions">
+                  <button
+                    className="secondary-btn pill"
+                    onClick={() => handleSaveRpc("testnet", customTestnetRpc)}
+                    disabled={savingRpc}
+                  >
+                    Save
+                  </button>
+                  <button
+                    className="secondary-btn pill"
+                    onClick={() => {
+                      setCustomTestnetRpc("");
+                      handleSaveRpc("testnet", "");
+                    }}
+                    disabled={savingRpc}
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ==================== SECURITY SECTION ==================== */}
+      <div className="settings-section">
+        <button
+          className="settings-section-header"
+          onClick={() => toggleSection("security")}
+        >
+          <div className="settings-section-title">
+            <span className="settings-section-icon"><ShieldIcon /></span>
+            Security
+            {(duressEnabled || timeDelayEnabled) && (
+              <span className="settings-badge active">Active</span>
+            )}
+          </div>
+          <span className={`settings-chevron ${expandedSections.security ? "expanded" : ""}`}>▼</span>
+        </button>
+
+        {expandedSections.security && (
+          <div className="settings-section-content">
+            {/* Duress Mode */}
+            <div className="settings-subsection">
+              <div className="settings-subsection-title">
+                Duress Mode (Decoy Wallet)
+                <span className="feature-badge">Unique</span>
+              </div>
+              <div className="muted small" style={{ marginBottom: 8 }}>
+                Create a panic PIN that opens a decoy wallet with a small fake balance.
+                Protects against physical threats and coercion.
+              </div>
+
+              <div className="toggle-row">
+                <div className="toggle-info">
+                  <span className="toggle-label">Enable Duress Mode</span>
+                </div>
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={duressEnabled}
+                    onChange={(e) => setDuressEnabled(e.target.checked)}
+                  />
+                  <span className="toggle-slider"></span>
+                </label>
+              </div>
+
+              {duressEnabled && (
+                <div className="config-panel">
+                  <div className="config-row">
+                    <span className="config-label">Duress PIN</span>
+                    <input
+                      type="password"
+                      className="config-input"
+                      placeholder="Set PIN"
+                      value={duressPin}
+                      onChange={(e) => setDuressPin(e.target.value)}
+                      style={{ width: 120 }}
+                    />
+                  </div>
+                  <div className="config-row">
+                    <span className="config-label">Decoy Balance (KAS)</span>
+                    <input
+                      type="number"
+                      className="config-input"
+                      value={duressDecoyBalance}
+                      onChange={(e) => setDuressDecoyBalance(e.target.value)}
+                      min="0"
+                      step="10"
+                    />
+                  </div>
+                  <button
+                    className="primary-btn"
+                    style={{ marginTop: 8, fontSize: 12 }}
+                    onClick={handleSaveDuressMode}
+                    disabled={!duressPin}
+                  >
+                    Save Duress Settings
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Time-Delayed Transactions */}
+            <div className="settings-subsection">
+              <div className="settings-subsection-title">
+                Time-Delayed Transactions
+                <span className="feature-badge novel">Novel</span>
+              </div>
+              <div className="muted small" style={{ marginBottom: 8 }}>
+                Large transactions are queued for a delay period. You can cancel within
+                the window. Protects against hacks, scams, and impulsive decisions.
+              </div>
+
+              <div className="toggle-row">
+                <div className="toggle-info">
+                  <span className="toggle-label">Enable Time Delay</span>
+                </div>
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={timeDelayEnabled}
+                    onChange={(e) => setTimeDelayEnabled(e.target.checked)}
+                  />
+                  <span className="toggle-slider"></span>
+                </label>
+              </div>
+
+              {timeDelayEnabled && (
+                <div className="config-panel">
+                  <div className="config-row">
+                    <span className="config-label">Threshold (KAS)</span>
+                    <input
+                      type="number"
+                      className="config-input"
+                      value={timeDelayThreshold}
+                      onChange={(e) => setTimeDelayThreshold(e.target.value)}
+                      min="1"
+                      step="100"
+                    />
+                  </div>
+                  <div className="config-row">
+                    <span className="config-label">Delay (hours)</span>
+                    <input
+                      type="number"
+                      className="config-input"
+                      value={timeDelayHours}
+                      onChange={(e) => setTimeDelayHours(e.target.value)}
+                      min="1"
+                      max="168"
+                      step="1"
+                    />
+                  </div>
+                  <button
+                    className="primary-btn"
+                    style={{ marginTop: 8, fontSize: 12 }}
+                    onClick={handleSaveTimeDelay}
+                  >
+                    Save Delay Settings
+                  </button>
+                  <div className="muted small" style={{ marginTop: 6 }}>
+                    Transactions above {timeDelayThreshold} KAS will wait {timeDelayHours} hours.
+                  </div>
+                </div>
+              )}
+
+              {/* Pending Transactions */}
+              {pendingTransactions.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <div className="settings-subsection-title" style={{ marginBottom: 8 }}>
+                    Pending Transactions ({pendingTransactions.length})
+                  </div>
+                  <div className="pending-tx-list">
+                    {pendingTransactions.map((tx) => (
+                      <div key={tx.id} className="pending-tx-item">
+                        <div className="pending-tx-header">
+                          <span className="pending-tx-amount">
+                            {(Number(tx.amountSompi) / 1e8).toFixed(2)} KAS
+                          </span>
+                          <span className="pending-tx-timer">
+                            {formatTimeRemaining(tx.executeAt)}
+                          </span>
+                        </div>
+                        <div className="pending-tx-address">{shorten(tx.to)}</div>
+                        <div className="pending-tx-actions">
+                          <button
+                            className="pending-tx-cancel"
+                            onClick={() => handleCancelDelayedTx(tx.id)}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            className="pending-tx-execute"
+                            onClick={() => handleExecuteDelayedTx(tx.id)}
+                          >
+                            Execute Now
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ==================== PORTFOLIO SECTION ==================== */}
+      <div className="settings-section">
+        <button
+          className="settings-section-header"
+          onClick={() => toggleSection("portfolio")}
+        >
+          <div className="settings-section-title">
+            <span className="settings-section-icon"><EyeIcon /></span>
+            Portfolio
+            {securityFeatures?.watchOnlyAddresses && securityFeatures.watchOnlyAddresses.length > 0 && (
+              <span className="settings-badge">{securityFeatures.watchOnlyAddresses.length} watching</span>
+            )}
+          </div>
+          <span className={`settings-chevron ${expandedSections.portfolio ? "expanded" : ""}`}>▼</span>
+        </button>
+
+        {expandedSections.portfolio && (
+          <div className="settings-section-content">
+            <div className="settings-subsection">
+              <div className="settings-subsection-title">Watch-Only Addresses</div>
+              <div className="muted small" style={{ marginBottom: 8 }}>
+                Track any Kaspa address without importing keys. Perfect for monitoring
+                whale wallets, cold storage, or friends' addresses.
+              </div>
+
+              {/* Watch List */}
+              {securityFeatures?.watchOnlyAddresses &&
+                securityFeatures.watchOnlyAddresses.length > 0 ? (
+                <div className="watch-list">
+                  {securityFeatures.watchOnlyAddresses.map((watch) => (
+                    <div key={watch.id} className="watch-item">
+                      <div
+                        className="watch-item-info watch-item-clickable"
+                        onClick={() => handleOpenWatchDetail(watch)}
+                        title="Tap to view transactions"
+                      >
+                        <span className="watch-item-label">{watch.label}</span>
+                        <span className="watch-item-copy-hint">
+                          Tap to view transactions
+                        </span>
+                      </div>
+                      <span className="watch-item-balance">
+                        {watchOnlyBalances[watch.id] !== undefined
+                          ? `${(watchOnlyBalances[watch.id] / 1e8).toFixed(2)} KAS`
+                          : "..."}
+                      </span>
+                      <button
+                        className="watch-item-remove"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveWatchOnly(watch.id);
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-state-icon">👁️</div>
+                  <div>No addresses being watched yet</div>
+                </div>
+              )}
+
+              {/* Add Watch Address Form */}
+              <div className="add-watch-form">
+                <input
+                  className="input"
+                  placeholder="Kaspa address (kaspa:...)"
+                  value={newWatchAddress}
+                  onChange={(e) => setNewWatchAddress(e.target.value)}
+                />
+                <input
+                  className="input"
+                  placeholder="Label (optional)"
+                  value={newWatchLabel}
+                  onChange={(e) => setNewWatchLabel(e.target.value)}
+                />
+                <button
+                  className="add-watch-btn"
+                  onClick={handleAddWatchOnly}
+                  disabled={!newWatchAddress || addingWatch}
+                >
+                  {addingWatch ? "Adding..." : "Add Address"}
+                </button>
+                {error && <div className="error-text">{error}</div>}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ==================== ABOUT SECTION ==================== */}
+      <div className="settings-section">
+        <button
+          className="settings-section-header"
+          onClick={() => toggleSection("about")}
+        >
+          <div className="settings-section-title">
+            <span className="settings-section-icon"><InfoIcon /></span>
+            About
+          </div>
+          <span className={`settings-chevron ${expandedSections.about ? "expanded" : ""}`}>▼</span>
+        </button>
+
+        {expandedSections.about && (
+          <div className="settings-section-content">
+            <div className="settings-subsection">
+              <div className="settings-subsection-title">Privacy & Security</div>
+              <div className="privacy-disclosure">
+                <div className="privacy-item">
+                  <span className="privacy-icon">🔐</span>
+                  <span>Your keys never leave this device</span>
+                </div>
+                <div className="privacy-item">
+                  <span className="privacy-icon">🚫</span>
+                  <span>No analytics or tracking</span>
+                </div>
+                <div className="privacy-item">
+                  <span className="privacy-icon">📡</span>
+                  <span>Only connects to Kaspa RPC for balances/transactions</span>
+                </div>
+                <div className="privacy-item">
+                  <span className="privacy-icon">⚠️</span>
+                  <span>We cannot recover your wallet - backup your seed phrase!</span>
+                </div>
+              </div>
+              <div className="muted small" style={{ marginTop: 6 }}>
+                NoXu is non-custodial. You have full control and responsibility.
+              </div>
+            </div>
+
+            <div className="settings-subsection">
+              <div className="settings-subsection-title">Verify Installation</div>
+              <button
+                className="secondary-btn"
+                style={{ fontSize: 12 }}
+                onClick={() => {
+                  const isFirefox = navigator.userAgent.includes("Firefox");
+                  const extensionsUrl = isFirefox ? "about:addons" : "chrome://extensions";
+                  browser.tabs.create({ url: extensionsUrl });
+                }}
+              >
+                Check Extension ID
+              </button>
+              <div className="muted small" style={{ marginTop: 6 }}>
+                Compare the extension ID with the official ID on our website.
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1441,8 +2061,8 @@ function InnerApp() {
             onClick={() => {
               setShowDelayedModal(false);
               setDelayedTxInfo(null);
-              setMainPage("security");
-              setSecurityTab("timedelay");
+              setMainPage("settings");
+              setExpandedSections(prev => ({ ...prev, security: true }));
             }}
           >
             View Queue
@@ -1452,300 +2072,38 @@ function InnerApp() {
     </div>
   );
 
-  // Security Page Card
-  const SecurityCard = (
-    <div className="card" style={{ display: "grid", gap: 10 }}>
-      {/* Save Success Message */}
-      {saveSuccess && (
-        <div className="save-success-banner">{saveSuccess}</div>
-      )}
+  // Filter tokens based on hideSmallBalances setting
+  const filteredTokens = hideSmallBalances
+    ? tokens.filter(({ token, amount }) => {
+        // Always show native KAS
+        if (token.symbol === "KAS") return true;
+        // Parse amount (could be string from formatTokenBalance or number)
+        const numAmount = typeof amount === "string" ? parseFloat(amount) : amount;
+        return numAmount >= SMALL_BALANCE_THRESHOLD;
+      })
+    : tokens;
 
-      {/* Security Tabs */}
-      <div className="security-tabs">
-        <button
-          className={`security-tab ${securityTab === "duress" ? "active" : ""}`}
-          onClick={() => setSecurityTab("duress")}
-        >
-          Duress Mode
-        </button>
-        <button
-          className={`security-tab ${securityTab === "timedelay" ? "active" : ""}`}
-          onClick={() => setSecurityTab("timedelay")}
-        >
-          Time Delay
-        </button>
-        <button
-          className={`security-tab ${securityTab === "watchonly" ? "active" : ""}`}
-          onClick={() => setSecurityTab("watchonly")}
-        >
-          Watch-Only
-        </button>
-      </div>
-
-      {/* Duress Mode Tab */}
-      {securityTab === "duress" && (
-        <div className="security-section">
-          <div className="security-section-title">
-            <span className="icon">🛡️</span>
-            Duress Mode (Decoy Wallet)
-            <span className="feature-badge">Unique</span>
-          </div>
-          <div className="muted small" style={{ marginBottom: 10 }}>
-            Create a panic PIN that opens a decoy wallet with a small fake balance.
-            Protects against physical threats and coercion.
-          </div>
-
-          <div className="toggle-row">
-            <div className="toggle-info">
-              <span className="toggle-label">Enable Duress Mode</span>
-              <span className="toggle-desc">
-                Set up a secondary PIN for emergencies
-              </span>
-            </div>
-            <label className="toggle-switch">
-              <input
-                type="checkbox"
-                checked={duressEnabled}
-                onChange={(e) => setDuressEnabled(e.target.checked)}
-              />
-              <span className="toggle-slider"></span>
-            </label>
-          </div>
-
-          {duressEnabled && (
-            <div className="config-panel">
-              <div className="config-row">
-                <span className="config-label">Duress PIN</span>
-                <input
-                  type="password"
-                  className="config-input"
-                  placeholder="Set PIN"
-                  value={duressPin}
-                  onChange={(e) => setDuressPin(e.target.value)}
-                  style={{ width: 120 }}
-                />
-              </div>
-              <div className="config-row">
-                <span className="config-label">Decoy Balance (KAS)</span>
-                <input
-                  type="number"
-                  className="config-input"
-                  value={duressDecoyBalance}
-                  onChange={(e) => setDuressDecoyBalance(e.target.value)}
-                  min="0"
-                  step="10"
-                />
-              </div>
-              <button
-                className="primary-btn"
-                style={{ marginTop: 8, fontSize: 12 }}
-                onClick={handleSaveDuressMode}
-                disabled={!duressPin}
-              >
-                Save Duress Settings
-              </button>
-              <div className="muted small" style={{ marginTop: 6 }}>
-                Use a different PIN than your real password. When entered, shows the decoy wallet.
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Watch-Only Tab (Portfolio Tool) */}
-      {securityTab === "watchonly" && (
-        <div className="security-section">
-          <div className="security-section-title">
-            <span className="icon">👁️</span>
-            Watch-Only Addresses
-            <span className="feature-badge" style={{ background: "rgba(59, 130, 246, 0.15)", color: "#93c5fd" }}>Portfolio</span>
-          </div>
-          <div className="muted small" style={{ marginBottom: 10 }}>
-            Track any Kaspa address without importing keys. Perfect for monitoring
-            whale wallets, cold storage, or friends' addresses.
-          </div>
-
-          {/* Watch List */}
-          {securityFeatures?.watchOnlyAddresses &&
-            securityFeatures.watchOnlyAddresses.length > 0 ? (
-            <div className="watch-list">
-              {securityFeatures.watchOnlyAddresses.map((watch) => (
-                <div key={watch.id} className="watch-item">
-                  <div
-                    className="watch-item-info watch-item-clickable"
-                    onClick={() => handleOpenWatchDetail(watch)}
-                    title="Tap to view transactions"
-                  >
-                    <span className="watch-item-label">{watch.label}</span>
-                    <span className="watch-item-copy-hint">
-                      Tap to view transactions
-                    </span>
-                  </div>
-                  <span className="watch-item-balance">
-                    {watchOnlyBalances[watch.id] !== undefined
-                      ? `${(watchOnlyBalances[watch.id] / 1e8).toFixed(2)} KAS`
-                      : "..."}
-                  </span>
-                  <button
-                    className="watch-item-remove"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveWatchOnly(watch.id);
-                    }}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state">
-              <div className="empty-state-icon">👁️</div>
-              <div>No addresses being watched yet</div>
-            </div>
-          )}
-
-          {/* Add Watch Address Form */}
-          <div className="add-watch-form">
-            <input
-              className="input"
-              placeholder="Kaspa address (kaspa:...)"
-              value={newWatchAddress}
-              onChange={(e) => setNewWatchAddress(e.target.value)}
-            />
-            <input
-              className="input"
-              placeholder="Label (optional)"
-              value={newWatchLabel}
-              onChange={(e) => setNewWatchLabel(e.target.value)}
-            />
-            <button
-              className="add-watch-btn"
-              onClick={handleAddWatchOnly}
-              disabled={!newWatchAddress || addingWatch}
-            >
-              {addingWatch ? "Adding..." : "Add Address"}
-            </button>
-            {error && <div className="error-text">{error}</div>}
-          </div>
-        </div>
-      )}
-
-      {/* Time Delay Tab */}
-      {securityTab === "timedelay" && (
-        <div className="security-section">
-          <div className="security-section-title">
-            <span className="icon">⏰</span>
-            Time-Delayed Transactions
-            <span className="feature-badge novel">Novel</span>
-          </div>
-          <div className="muted small" style={{ marginBottom: 10 }}>
-            Large transactions are queued for a delay period. You can cancel within
-            the window. Protects against hacks, scams, and impulsive decisions.
-          </div>
-
-          <div className="toggle-row">
-            <div className="toggle-info">
-              <span className="toggle-label">Enable Time Delay</span>
-              <span className="toggle-desc">
-                Queue large transactions for review
-              </span>
-            </div>
-            <label className="toggle-switch">
-              <input
-                type="checkbox"
-                checked={timeDelayEnabled}
-                onChange={(e) => setTimeDelayEnabled(e.target.checked)}
-              />
-              <span className="toggle-slider"></span>
-            </label>
-          </div>
-
-          {timeDelayEnabled && (
-            <div className="config-panel">
-              <div className="config-row">
-                <span className="config-label">Threshold (KAS)</span>
-                <input
-                  type="number"
-                  className="config-input"
-                  value={timeDelayThreshold}
-                  onChange={(e) => setTimeDelayThreshold(e.target.value)}
-                  min="1"
-                  step="100"
-                />
-              </div>
-              <div className="config-row">
-                <span className="config-label">Delay (hours)</span>
-                <input
-                  type="number"
-                  className="config-input"
-                  value={timeDelayHours}
-                  onChange={(e) => setTimeDelayHours(e.target.value)}
-                  min="1"
-                  max="168"
-                  step="1"
-                />
-              </div>
-              <button
-                className="primary-btn"
-                style={{ marginTop: 8, fontSize: 12 }}
-                onClick={handleSaveTimeDelay}
-              >
-                Save Delay Settings
-              </button>
-              <div className="muted small" style={{ marginTop: 6 }}>
-                Transactions above {timeDelayThreshold} KAS will wait {timeDelayHours} hours before execution.
-              </div>
-            </div>
-          )}
-
-          {/* Pending Transactions */}
-          {pendingTransactions.length > 0 && (
-            <>
-              <div className="card-title" style={{ marginTop: 12 }}>
-                Pending Transactions ({pendingTransactions.length})
-              </div>
-              <div className="pending-tx-list">
-                {pendingTransactions.map((tx) => (
-                  <div key={tx.id} className="pending-tx-item">
-                    <div className="pending-tx-header">
-                      <span className="pending-tx-amount">
-                        {(Number(tx.amountSompi) / 1e8).toFixed(2)} KAS
-                      </span>
-                      <span className="pending-tx-timer">
-                        {formatTimeRemaining(tx.executeAt)}
-                      </span>
-                    </div>
-                    <div className="pending-tx-address">{tx.to}</div>
-                    <div className="pending-tx-actions">
-                      <button
-                        className="pending-tx-cancel"
-                        onClick={() => handleCancelDelayedTx(tx.id)}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        className="pending-tx-execute"
-                        onClick={() => handleExecuteDelayedTx(tx.id)}
-                      >
-                        Execute Now
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  const hiddenCount = tokens.length - filteredTokens.length;
 
   const TokensCard = (
     <div className="card">
-      <div className="card-title">Tokens</div>
+      <div className="row space-between" style={{ marginBottom: 8 }}>
+        <div className="card-title" style={{ margin: 0 }}>Tokens</div>
+        <div className="row" style={{ gap: 8 }}>
+          {tokenBalancesLoading && (
+            <span className="muted small">Loading...</span>
+          )}
+          <button
+            className={`hide-small-btn ${hideSmallBalances ? "active" : ""}`}
+            onClick={() => setHideSmallBalances(!hideSmallBalances)}
+            title={hideSmallBalances ? "Show all tokens" : "Hide small balances"}
+          >
+            {hideSmallBalances ? "Show all" : "Hide small"}
+          </button>
+        </div>
+      </div>
       <div className="token-list">
-        {tokens.map(({ token, amount }) => (
+        {filteredTokens.map(({ token, amount }) => (
           <button
             key={token.id}
             className="token-row"
@@ -1758,10 +2116,23 @@ function InnerApp() {
             <div className="token-main">
               <span className="token-symbol">{token.symbol}</span>
               <span className="token-name">{token.name}</span>
+              {token.kind === "krc20" && (
+                <span className="token-badge">KRC-20</span>
+              )}
             </div>
             <div className="token-balance">{amount}</div>
           </button>
         ))}
+        {filteredTokens.length === 1 && !tokenBalancesLoading && !hideSmallBalances && (
+          <div className="muted small" style={{ textAlign: "center", padding: 12 }}>
+            No KRC-20 tokens found for this address
+          </div>
+        )}
+        {hideSmallBalances && hiddenCount > 0 && (
+          <div className="muted small" style={{ textAlign: "center", padding: 8 }}>
+            {hiddenCount} token{hiddenCount > 1 ? "s" : ""} hidden (balance {"<"} {SMALL_BALANCE_THRESHOLD})
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1787,8 +2158,8 @@ function InnerApp() {
                     className="secondary-btn pill"
                     style={{ fontSize: 10, padding: "4px 8px" }}
                     onClick={() => {
-                      setMainPage("security");
-                      setSecurityTab("watchonly");
+                      setMainPage("settings");
+                      setExpandedSections(prev => ({ ...prev, portfolio: true }));
                     }}
                   >
                     Manage
@@ -1823,8 +2194,8 @@ function InnerApp() {
                 className="warning-banner"
                 style={{ marginTop: 8, cursor: "pointer" }}
                 onClick={() => {
-                  setMainPage("security");
-                  setSecurityTab("timedelay");
+                  setMainPage("settings");
+                  setExpandedSections(prev => ({ ...prev, security: true }));
                 }}
               >
                 <strong>⏰ {pendingTransactions.length} Queued Transaction{pendingTransactions.length > 1 ? "s" : ""}</strong>
@@ -1838,28 +2209,22 @@ function InnerApp() {
           </ScreenLayout>
         )}
         {mainPage === "send" && (
-          <ScreenLayout title="Send">{SendCard}</ScreenLayout>
+          <ScreenLayout title="Send" onBack={() => setMainPage("home")}>{SendCard}</ScreenLayout>
         )}
         {mainPage === "receive" && (
-          <ScreenLayout title="Receive">{ReceiveCard}</ScreenLayout>
+          <ScreenLayout title="Receive" onBack={() => setMainPage("home")}>{ReceiveCard}</ScreenLayout>
         )}
         {mainPage === "activity" && (
-          <ScreenLayout title="Activity">{ActivityList}</ScreenLayout>
+          <ScreenLayout title="Activity" onBack={() => setMainPage("home")}>{ActivityList}</ScreenLayout>
         )}
         {mainPage === "settings" && (
-          <ScreenLayout title="Settings">{SettingsCard}</ScreenLayout>
-        )}
-        {mainPage === "security" && (
-          <ScreenLayout title="Security" onBack={() => setMainPage("settings")}>
-            {SecurityCard}
-          </ScreenLayout>
+          <ScreenLayout title="Settings" onBack={() => setMainPage("home")}>{SettingsCard}</ScreenLayout>
         )}
         {mainPage === "watchdetail" && selectedWatch && (
           <ScreenLayout
             title={selectedWatch.label}
             onBack={() => {
-              setMainPage("security");
-              setSecurityTab("watchonly");
+              setMainPage("home");
               setSelectedWatch(null);
               setWatchHistory([]);
             }}

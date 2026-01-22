@@ -16,6 +16,8 @@ NoXu Wallet enables users to securely manage their KAS holdings with industry-le
 - **Create & Import Wallets** - Generate new wallets with 12 or 24-word BIP39 mnemonics or import existing seed phrases
 - **Send & Receive KAS** - Full transaction support with confirmation modals
 - **Balance & History** - Real-time balance updates and transaction history
+- **KRC-20 Token Support** - View and track KRC-20 tokens on Kaspa via Kasplex indexer
+- **Hide Small Balances** - Option to hide tokens with small balances for cleaner display
 - **Network Switching** - Support for Kaspa mainnet and testnet with custom RPC configuration
 
 ### Security
@@ -71,7 +73,8 @@ src/
 │   │   ├── encryption.ts    # Argon2id + AES-256-GCM
 │   │   └── secure.ts        # Memory wiping utilities
 │   └── kaspa/
-│       └── client.ts        # REST API client with Zod validation
+│       ├── client.ts        # REST API client with Zod validation
+│       └── krc20-client.ts  # KRC-20 token client (Kasplex API)
 ├── extension/               # Browser extension
 │   ├── background/          # Service worker with security features
 │   ├── contentScript/       # dApp bridge (IIFE bundled)
@@ -200,8 +203,9 @@ NoXu Wallet is built with security as the primary concern. See [SECURITY_AUDIT.m
 - [x] Duress Mode (decoy wallet protection)
 - [x] Watch-only address tracking with transaction history
 - [x] Time-delayed transactions for large transfers
+- [x] KRC-20 token support (view balances via Kasplex indexer)
 - [ ] Full Kaspa transaction signing (Schnorr signatures)
-- [ ] KRC20 token support
+- [ ] KRC-20 token transfers
 - [ ] Hardware wallet integration (Ledger)
 - [ ] Mobile companion app
 - [ ] Third-party security audit

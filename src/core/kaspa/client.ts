@@ -13,7 +13,7 @@ export type KaspaUTXO = {
 
 export type KaspaTx = {
   txid: string;
-  amountSompi: bigint;
+  amountSompi: number; // Kept as number for JSON serialization across message passing
   to: string;
   from: string;
   time?: number;
@@ -48,8 +48,8 @@ const TransactionsResponseSchema = z.array(
     transaction_id: z.string(),
     inputs: z.array(
       z.object({
-        previous_outpoint_address: z.string().optional(),
-        previous_outpoint_amount: z.number().optional(),
+        previous_outpoint_address: z.string().nullish(),
+        previous_outpoint_amount: z.number().nullish(),
       })
     ),
     outputs: z.array(
@@ -162,10 +162,11 @@ export class KaspaClient {
     }));
   }
 
-  async getTransactions(address: string): Promise<KaspaTx[]> {
+  async getTransactions(address: string, limit: number = 50): Promise<KaspaTx[]> {
     // REST API: GET /addresses/{kaspaAddress}/full-transactions
+    // Limit to recent transactions to avoid timeouts on addresses with many txs
     const res = await this.restCall(
-      `/addresses/${address}/full-transactions`,
+      `/addresses/${address}/full-transactions?limit=${limit}`,
       TransactionsResponseSchema
     );
 
@@ -179,7 +180,7 @@ export class KaspaClient {
 
       return {
         txid: tx.transaction_id,
-        amountSompi: BigInt(amount),
+        amountSompi: amount, // Keep as number for JSON serialization
         to: relevantOutput?.script_public_key_address || "",
         from: tx.inputs[0]?.previous_outpoint_address || "",
         time: tx.block_time,
