@@ -803,3 +803,483 @@ textarea.input:focus {
   gap: 10px;
   margin-top: 16px;
 }
+
+/* ------------ Security Features UI ------------ */
+
+/* Toggle Switch */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.toggle-row:last-child {
+  border-bottom: none;
+}
+
+.toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  padding-right: 12px;
+}
+
+.toggle-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.toggle-desc {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+.toggle-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(148, 163, 184, 0.3);
+  transition: 0.3s;
+  border-radius: 999px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: var(--text);
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: linear-gradient(135deg, #6ec7bb, #8fe4d9);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(20px);
+  background: #02110e;
+}
+
+/* Security Section Card */
+.security-section {
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(7, 10, 12, 0.9);
+  border: 1px solid var(--border-subtle);
+}
+
+.security-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.security-section-title .icon {
+  font-size: 14px;
+}
+
+/* Collapsible Config Panel */
+.config-panel {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(110, 199, 187, 0.08);
+  border: 1px solid rgba(110, 199, 187, 0.25);
+}
+
+.config-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.config-row:last-child {
+  margin-bottom: 0;
+}
+
+.config-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.config-input {
+  width: 100px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(7, 10, 12, 0.9);
+  color: var(--text);
+  font-size: 13px;
+  text-align: right;
+}
+
+.config-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* Watch-Only List */
+.watch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.watch-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(7, 10, 12, 0.9);
+  border: 1px solid var(--border-subtle);
+}
+
+.watch-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.watch-item-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.watch-item-address {
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.watch-item-clickable {
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.watch-item-clickable:hover {
+  opacity: 0.8;
+}
+
+.watch-item-copy-hint {
+  font-size: 9px;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.watch-item-balance {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-right: 8px;
+}
+
+.watch-item-remove {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(249, 115, 115, 0.2);
+  color: var(--danger);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.watch-item-remove:hover {
+  background: rgba(249, 115, 115, 0.35);
+}
+
+/* Add Watch Address Form */
+.add-watch-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(7, 10, 12, 0.9);
+  border: 1px dashed var(--border-subtle);
+}
+
+.add-watch-form .input {
+  font-size: 12px;
+  padding: 8px 12px;
+}
+
+.add-watch-btn {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #6ec7bb, #8fe4d9);
+  color: #02110e;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+
+.add-watch-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(110, 199, 187, 0.4);
+}
+
+.add-watch-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Pending Transactions List */
+.pending-tx-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.pending-tx-item {
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+}
+
+.pending-tx-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.pending-tx-amount {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fcd34d;
+}
+
+.pending-tx-timer {
+  font-size: 11px;
+  color: #fcd34d;
+  background: rgba(234, 179, 8, 0.2);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.pending-tx-address {
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+
+.pending-tx-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.pending-tx-cancel {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid rgba(249, 115, 115, 0.5);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--danger);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.pending-tx-cancel:hover {
+  background: rgba(249, 115, 115, 0.15);
+}
+
+.pending-tx-execute {
+  flex: 1;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #6ec7bb, #8fe4d9);
+  color: #02110e;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Duress Mode Warning */
+.duress-active-banner {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(249, 115, 115, 0.15);
+  border: 1px solid rgba(249, 115, 115, 0.4);
+  color: #fca5a5;
+  font-size: 11px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+/* Info Badge */
+.feature-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(110, 199, 187, 0.15);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.feature-badge.novel {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c4b5fd;
+}
+
+/* Tabs for Security Settings */
+.security-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(7, 10, 12, 0.9);
+  border: 1px solid var(--border-subtle);
+}
+
+.security-tab {
+  flex: 1;
+  padding: 8px 6px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.security-tab.active {
+  background: linear-gradient(135deg, #6ec7bb, #8fe4d9);
+  color: #02110e;
+}
+
+.security-tab:hover:not(.active) {
+  color: var(--text);
+}
+
+/* Empty State */
+.empty-state {
+  padding: 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.empty-state-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+  opacity: 0.5;
+}
+
+/* Save Success Banner */
+.save-success-banner {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #86efac;
+  font-size: 12px;
+  text-align: center;
+  font-weight: 600;
+  animation: fadeInOut 2s ease-in-out;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(-5px); }
+  15% { opacity: 1; transform: translateY(0); }
+  85% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-5px); }
+}
+
+/* Watch Detail View */
+.watch-detail-header {
+  text-align: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 8px;
+}
+
+.watch-detail-balance {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.watch-detail-address {
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(7, 10, 12, 0.9);
+  border: 1px solid var(--border-subtle);
+  display: inline-block;
+  transition: all 0.15s;
+}
+
+.watch-detail-address:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* Transaction direction styling */
+.tx-incoming {
+  color: #86efac;
+  font-weight: 600;
+}
+
+.tx-outgoing {
+  color: #fca5a5;
+  font-weight: 600;
+}

@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "vite --mode development",
-    "build": "vite build",
-    "build:chrome": "TARGET_BROWSER=chrome vite build",
-    "build:firefox": "TARGET_BROWSER=firefox vite build",
+    "build": "vite build && vite build --config vite.contentscript.config.ts",
+    "build:chrome": "TARGET_BROWSER=chrome vite build && vite build --config vite.contentscript.config.ts",
+    "build:firefox": "TARGET_BROWSER=firefox vite build && vite build --config vite.contentscript.config.ts",
     "build:all": "npm run build:chrome && mv dist dist-chrome && npm run build:firefox && mv dist dist-firefox",
     "lint": "echo \"TODO: add linting\""
   },

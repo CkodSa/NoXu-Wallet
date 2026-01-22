@@ -26,6 +26,11 @@ NoXu Wallet enables users to securely manage their KAS holdings with industry-le
 - **Phishing Protection** - Extension ID verification and console security warnings
 - **No Tracking** - Zero analytics or telemetry
 
+### Advanced Security Features
+- **Duress Mode (Decoy Wallet)** - Create a panic PIN that opens a decoy wallet with a fake balance. Protects against physical threats and coercion - attackers see only a small decoy balance while your real funds remain hidden.
+- **Watch-Only Portfolio Tracking** - Monitor any Kaspa address without importing keys. Perfect for tracking whale wallets, cold storage, or friends' addresses. View balances and full transaction history.
+- **Time-Delayed Transactions** - Large transactions are automatically queued with a configurable delay period. Cancel within the window if compromised. Protects against hacks, scams, and impulsive decisions.
+
 ### Technical
 - **Cross-Browser Support** - Works on Chrome and Firefox
 - **Chrome Manifest V3 / Firefox MV3** - Modern extension architecture
@@ -58,6 +63,7 @@ src/
 │   ├── wallet.ts            # Wallet state management
 │   ├── networks.ts          # Network configuration
 │   ├── tokens/              # Token metadata and resolution
+│   ├── securityFeatures.ts  # Duress mode, watch-only, time-delay logic
 │   ├── crypto/
 │   │   ├── mnemonic.ts      # BIP39/BIP44 key derivation
 │   │   ├── encryption.ts    # Argon2id + AES-256-GCM
@@ -65,12 +71,12 @@ src/
 │   └── kaspa/
 │       └── client.ts        # REST API client with Zod validation
 ├── extension/               # Browser extension
-│   ├── background/          # Service worker
-│   ├── contentScript/       # dApp bridge
+│   ├── background/          # Service worker with security features
+│   ├── contentScript/       # dApp bridge (IIFE bundled)
 │   ├── manifest.chrome.json # Chrome manifest
 │   └── manifest.firefox.json # Firefox manifest
 ├── ui/                      # React UI
-│   ├── popup/               # Main wallet interface
+│   ├── popup/               # Main wallet interface with security UI
 │   ├── options/             # Settings page
 │   └── store.ts             # Zustand state store
 └── legal/                   # Terms, privacy, support docs
@@ -170,6 +176,9 @@ NoXu Wallet is built with security as the primary concern. See [SECURITY_AUDIT.m
 - Auto-lock on system idle/lock
 - HTTPS-only custom RPC URLs
 - Console security warnings
+- **Duress Mode** - Decoy wallet with fake balance for coercion protection
+- **Watch-Only Tracking** - Monitor addresses with full transaction history
+- **Time-Delayed Transactions** - Configurable delays for large transfers with cancellation window
 
 ## Browser Support
 
@@ -187,6 +196,9 @@ NoXu Wallet is built with security as the primary concern. See [SECURITY_AUDIT.m
 - [x] Mainnet and testnet support
 - [x] dApp connection framework
 - [x] Cross-browser support (Chrome + Firefox)
+- [x] Duress Mode (decoy wallet protection)
+- [x] Watch-only address tracking with transaction history
+- [x] Time-delayed transactions for large transfers
 - [ ] Full Kaspa transaction signing (Schnorr signatures)
 - [ ] KRC20 token support
 - [ ] Hardware wallet integration (Ledger)

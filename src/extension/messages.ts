@@ -19,7 +19,20 @@ export type MessageType =
   | "SET_CUSTOM_RPC"
   | "GET_CUSTOM_RPC"
   | "GET_AUTO_LOCK"
-  | "SET_AUTO_LOCK";
+  | "SET_AUTO_LOCK"
+  // Security Features
+  | "GET_SECURITY_FEATURES"
+  | "SET_DURESS_MODE"
+  | "CHECK_DURESS_PIN"
+  | "ADD_WATCH_ONLY"
+  | "REMOVE_WATCH_ONLY"
+  | "GET_WATCH_ONLY_BALANCE"
+  | "GET_WATCH_ONLY_HISTORY"
+  | "SET_TIME_DELAY"
+  | "QUEUE_DELAYED_TX"
+  | "CANCEL_DELAYED_TX"
+  | "EXECUTE_DELAYED_TX"
+  | "GET_PENDING_TXS";
 
 export type RpcMessage<T = any> = {
   type: MessageType;

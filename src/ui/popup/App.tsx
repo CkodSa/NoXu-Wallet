@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import browser from "webextension-polyfill";
 import { useWalletStore } from "../store";
 import type { DerivedAccount } from "../../core/crypto/mnemonic";
@@ -7,6 +7,12 @@ import {
   type KaspaNetwork,
   type TokenMeta
 } from "../../core/tokens";
+import {
+  formatTimeRemaining,
+  type SecurityFeaturesState,
+  type WatchOnlyAddress,
+  type DelayedTransaction,
+} from "../../core/securityFeatures";
 
 type OnboardingStep =
   | "welcome"
@@ -21,7 +27,12 @@ type MainPage =
   | "receive"
   | "activity"
   | "settings"
-  | "token";
+  | "token"
+  | "security"
+  | "watchlist"
+  | "watchdetail";
+
+type SecurityTab = "duress" | "watchonly" | "timedelay";
 
 async function rpc(type: string, payload?: any) {
   return browser.runtime.sendMessage({ type, payload });
@@ -373,11 +384,95 @@ function InnerApp() {
   const [sendingTx, setSendingTx] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  // Security Features State
+  const [securityTab, setSecurityTab] = useState<SecurityTab>("duress");
+  const [securityFeatures, setSecurityFeatures] = useState<SecurityFeaturesState | null>(null);
+  const [isDuressMode, setIsDuressMode] = useState(false);
+  const [duressPin, setDuressPin] = useState("");
+  const [duressDecoyBalance, setDuressDecoyBalance] = useState("50");
+  const [duressEnabled, setDuressEnabled] = useState(false);
+  const [watchOnlyBalances, setWatchOnlyBalances] = useState<Record<string, number>>({});
+  const [newWatchAddress, setNewWatchAddress] = useState("");
+  const [newWatchLabel, setNewWatchLabel] = useState("");
+  const [addingWatch, setAddingWatch] = useState(false);
+  const [timeDelayEnabled, setTimeDelayEnabled] = useState(false);
+  const [timeDelayThreshold, setTimeDelayThreshold] = useState("1000");
+  const [timeDelayHours, setTimeDelayHours] = useState("24");
+  const [pendingTransactions, setPendingTransactions] = useState<DelayedTransaction[]>([]);
+  const [showDelayedModal, setShowDelayedModal] = useState(false);
+  const [delayedTxInfo, setDelayedTxInfo] = useState<DelayedTransaction | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null); // For "Saved" feedback
+  const [copiedWatchId, setCopiedWatchId] = useState<string | null>(null); // For copy feedback
+  const [selectedWatch, setSelectedWatch] = useState<WatchOnlyAddress | null>(null); // For watch detail view
+  const [watchHistory, setWatchHistory] = useState<any[]>([]); // Transaction history for selected watch address
+  const [watchHistoryLoading, setWatchHistoryLoading] = useState(false);
+
   useEffect(() => {
     browser.storage.local.get([STORAGE_SEED_SEEN_KEY]).then((res) => {
       if (res && res[STORAGE_SEED_SEEN_KEY]) setSeedSeen(true);
     });
   }, []);
+
+  // Load security features
+  const loadSecurityFeatures = useCallback(async () => {
+    const res = await rpc("GET_SECURITY_FEATURES");
+    if (res?.ok) {
+      setSecurityFeatures(res.securityFeatures);
+      setIsDuressMode(res.isDuressMode);
+      setDuressEnabled(res.securityFeatures.duressMode.enabled);
+      setDuressDecoyBalance(String(res.securityFeatures.duressMode.decoyBalance / 1e8));
+      setTimeDelayEnabled(res.securityFeatures.timeDelay.enabled);
+      setTimeDelayThreshold(String(res.securityFeatures.timeDelay.thresholdKas));
+      setTimeDelayHours(String(res.securityFeatures.timeDelay.delayHours));
+    }
+  }, []);
+
+  // Load pending transactions
+  const loadPendingTransactions = useCallback(async () => {
+    const res = await rpc("GET_PENDING_TXS");
+    if (res?.ok) {
+      setPendingTransactions(res.transactions);
+    }
+  }, []);
+
+  // Load watch-only balances
+  const loadWatchOnlyBalances = useCallback(async () => {
+    if (!securityFeatures?.watchOnlyAddresses?.length) return;
+    const balances: Record<string, number> = {};
+    for (const watch of securityFeatures.watchOnlyAddresses) {
+      try {
+        const res = await rpc("GET_WATCH_ONLY_BALANCE", { address: watch.address });
+        if (res?.ok) {
+          balances[watch.id] = res.balance;
+        }
+      } catch {
+        // Ignore errors for individual addresses
+      }
+    }
+    setWatchOnlyBalances(balances);
+  }, [securityFeatures?.watchOnlyAddresses]);
+
+  useEffect(() => {
+    if (account) {
+      loadSecurityFeatures();
+      loadPendingTransactions();
+    }
+  }, [account, loadSecurityFeatures, loadPendingTransactions]);
+
+  useEffect(() => {
+    if (securityFeatures?.watchOnlyAddresses?.length) {
+      loadWatchOnlyBalances();
+    }
+  }, [securityFeatures?.watchOnlyAddresses, loadWatchOnlyBalances]);
+
+  // Refresh pending transactions timer
+  useEffect(() => {
+    if (!account || pendingTransactions.length === 0) return;
+    const interval = setInterval(() => {
+      loadPendingTransactions();
+    }, 60000); // Refresh every minute
+    return () => clearInterval(interval);
+  }, [account, pendingTransactions.length, loadPendingTransactions]);
 
   useEffect(() => {
     rpc("GET_STATE").then((res) => {
@@ -489,6 +584,16 @@ function InnerApp() {
     setShowConfirmSend(false);
 
     if (res?.ok) {
+      // Check if transaction was delayed
+      if (res.delayed) {
+        setDelayedTxInfo(res.transaction);
+        setShowDelayedModal(true);
+        setRecipient("");
+        setAmount("");
+        await loadPendingTransactions();
+        return;
+      }
+
       setMainPage("home");
       setRecipient("");
       setAmount("");
@@ -512,6 +617,107 @@ function InnerApp() {
 
   const handleCancelSend = () => {
     setShowConfirmSend(false);
+  };
+
+  // Helper to show save success message
+  const showSaveSuccess = (message: string) => {
+    setSaveSuccess(message);
+    setTimeout(() => setSaveSuccess(null), 2000);
+  };
+
+  // Helper to copy watch address
+  const handleCopyWatchAddress = (id: string, address: string) => {
+    navigator.clipboard.writeText(address);
+    setCopiedWatchId(id);
+    setTimeout(() => setCopiedWatchId(null), 1500);
+  };
+
+  // Open watch address detail view with transaction history
+  const handleOpenWatchDetail = async (watch: WatchOnlyAddress) => {
+    setSelectedWatch(watch);
+    setWatchHistory([]);
+    setWatchHistoryLoading(true);
+    setMainPage("watchdetail");
+
+    try {
+      const res = await rpc("GET_WATCH_ONLY_HISTORY", { address: watch.address });
+      if (res?.ok) {
+        setWatchHistory(res.history || []);
+      }
+    } catch {
+      // Ignore errors, show empty history
+    }
+    setWatchHistoryLoading(false);
+  };
+
+  // Security Feature Handlers
+  const handleSaveDuressMode = async () => {
+    const res = await rpc("SET_DURESS_MODE", {
+      enabled: duressEnabled,
+      duressPin: duressPin || undefined,
+      decoyBalance: Math.round(Number(duressDecoyBalance) * 1e8),
+    });
+    if (res?.ok) {
+      setDuressPin(""); // Clear PIN from UI for security
+      await loadSecurityFeatures();
+      showSaveSuccess("Duress settings saved");
+    }
+  };
+
+  const handleAddWatchOnly = async () => {
+    if (!newWatchAddress || addingWatch) return;
+    setAddingWatch(true);
+    setError(undefined);
+    const res = await rpc("ADD_WATCH_ONLY", {
+      address: newWatchAddress,
+      label: newWatchLabel || "Unnamed",
+    });
+    setAddingWatch(false);
+    if (res?.ok) {
+      setNewWatchAddress("");
+      setNewWatchLabel("");
+      await loadSecurityFeatures();
+    } else {
+      setError(res?.error || "Failed to add address");
+    }
+  };
+
+  const handleRemoveWatchOnly = async (id: string) => {
+    const res = await rpc("REMOVE_WATCH_ONLY", { id });
+    if (res?.ok) {
+      await loadSecurityFeatures();
+    }
+  };
+
+  const handleSaveTimeDelay = async () => {
+    const res = await rpc("SET_TIME_DELAY", {
+      enabled: timeDelayEnabled,
+      thresholdKas: Number(timeDelayThreshold),
+      delayHours: Number(timeDelayHours),
+    });
+    if (res?.ok) {
+      await loadSecurityFeatures();
+      showSaveSuccess("Time delay settings saved");
+    }
+  };
+
+  const handleCancelDelayedTx = async (id: string) => {
+    const res = await rpc("CANCEL_DELAYED_TX", { id });
+    if (res?.ok) {
+      await loadPendingTransactions();
+    }
+  };
+
+  const handleExecuteDelayedTx = async (id: string) => {
+    const res = await rpc("EXECUTE_DELAYED_TX", { id });
+    if (res?.ok) {
+      await loadPendingTransactions();
+      rpc("GET_BALANCE").then((b) => {
+        if (b?.ok) setBalance(Number(b.balance));
+      });
+    } else {
+      setError(res?.error);
+    }
   };
 
   const confirmSeed = () => {
@@ -1118,6 +1324,36 @@ function InnerApp() {
         NoXu is non-custodial. You have full control and responsibility.
       </div>
 
+      {/* Advanced Security Features */}
+      <div className="settings-divider" />
+      <div className="card-title">Advanced Security</div>
+      <button
+        className="primary-btn"
+        style={{ fontSize: 13 }}
+        onClick={() => setMainPage("security")}
+      >
+        Security Features
+      </button>
+      <div className="muted small" style={{ marginTop: 4 }}>
+        Configure duress mode, watch-only tracking, and time-delayed transactions.
+      </div>
+
+      {/* Pending Transactions Indicator */}
+      {pendingTransactions.length > 0 && (
+        <div
+          className="warning-banner"
+          style={{ cursor: "pointer" }}
+          onClick={() => {
+            setMainPage("security");
+            setSecurityTab("timedelay");
+          }}
+        >
+          <strong>{pendingTransactions.length} Pending Transaction{pendingTransactions.length > 1 ? "s" : ""}</strong>
+          <br />
+          Click to view and manage queued transactions.
+        </div>
+      )}
+
       {/* Verify Installation Link */}
       <div className="settings-divider" />
       <button
@@ -1136,6 +1372,354 @@ function InnerApp() {
       <div className="muted small" style={{ marginTop: 4 }}>
         Compare the extension ID in chrome://extensions with the official ID on our website.
       </div>
+    </div>
+  );
+
+  // Delayed Transaction Modal
+  const DelayedTxModal = showDelayedModal && delayedTxInfo && (
+    <div className="modal-overlay">
+      <div className="modal-content">
+        <div className="modal-title">Transaction Queued</div>
+
+        <div className="confirm-section">
+          <div className="confirm-label">Amount</div>
+          <div className="confirm-value confirm-amount">
+            {Number(delayedTxInfo.amountSompi) / 1e8} KAS
+          </div>
+        </div>
+
+        <div className="confirm-section">
+          <div className="confirm-label">To</div>
+          <div className="confirm-value" style={{ fontSize: 11, wordBreak: "break-all" }}>
+            {delayedTxInfo.to}
+          </div>
+        </div>
+
+        <div className="warning-banner" style={{ marginTop: 12 }}>
+          <strong>Time-Delayed Protection Active</strong><br />
+          This transaction exceeds your threshold of {securityFeatures?.timeDelay.thresholdKas} KAS.
+          It will be executed in {securityFeatures?.timeDelay.delayHours} hours unless cancelled.
+        </div>
+
+        <div className="confirm-section" style={{ marginTop: 12 }}>
+          <div className="confirm-label">Executes At</div>
+          <div className="confirm-value">
+            {new Date(delayedTxInfo.executeAt).toLocaleString()}
+          </div>
+        </div>
+
+        <div className="modal-buttons">
+          <button
+            className="secondary-btn"
+            onClick={() => {
+              handleCancelDelayedTx(delayedTxInfo.id);
+              setShowDelayedModal(false);
+              setDelayedTxInfo(null);
+            }}
+          >
+            Cancel Transaction
+          </button>
+          <button
+            className="primary-btn"
+            onClick={() => {
+              setShowDelayedModal(false);
+              setDelayedTxInfo(null);
+              setMainPage("security");
+              setSecurityTab("timedelay");
+            }}
+          >
+            View Queue
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Security Page Card
+  const SecurityCard = (
+    <div className="card" style={{ display: "grid", gap: 10 }}>
+      {/* Save Success Message */}
+      {saveSuccess && (
+        <div className="save-success-banner">{saveSuccess}</div>
+      )}
+
+      {/* Security Tabs */}
+      <div className="security-tabs">
+        <button
+          className={`security-tab ${securityTab === "duress" ? "active" : ""}`}
+          onClick={() => setSecurityTab("duress")}
+        >
+          Duress Mode
+        </button>
+        <button
+          className={`security-tab ${securityTab === "watchonly" ? "active" : ""}`}
+          onClick={() => setSecurityTab("watchonly")}
+        >
+          Watch-Only
+        </button>
+        <button
+          className={`security-tab ${securityTab === "timedelay" ? "active" : ""}`}
+          onClick={() => setSecurityTab("timedelay")}
+        >
+          Time Delay
+        </button>
+      </div>
+
+      {/* Duress Mode Tab */}
+      {securityTab === "duress" && (
+        <div className="security-section">
+          <div className="security-section-title">
+            <span className="icon">🛡️</span>
+            Duress Mode (Decoy Wallet)
+            <span className="feature-badge">Unique</span>
+          </div>
+          <div className="muted small" style={{ marginBottom: 10 }}>
+            Create a panic PIN that opens a decoy wallet with a small fake balance.
+            Protects against physical threats and coercion.
+          </div>
+
+          <div className="toggle-row">
+            <div className="toggle-info">
+              <span className="toggle-label">Enable Duress Mode</span>
+              <span className="toggle-desc">
+                Set up a secondary PIN for emergencies
+              </span>
+            </div>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={duressEnabled}
+                onChange={(e) => setDuressEnabled(e.target.checked)}
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
+
+          {duressEnabled && (
+            <div className="config-panel">
+              <div className="config-row">
+                <span className="config-label">Duress PIN</span>
+                <input
+                  type="password"
+                  className="config-input"
+                  placeholder="Set PIN"
+                  value={duressPin}
+                  onChange={(e) => setDuressPin(e.target.value)}
+                  style={{ width: 120 }}
+                />
+              </div>
+              <div className="config-row">
+                <span className="config-label">Decoy Balance (KAS)</span>
+                <input
+                  type="number"
+                  className="config-input"
+                  value={duressDecoyBalance}
+                  onChange={(e) => setDuressDecoyBalance(e.target.value)}
+                  min="0"
+                  step="10"
+                />
+              </div>
+              <button
+                className="primary-btn"
+                style={{ marginTop: 8, fontSize: 12 }}
+                onClick={handleSaveDuressMode}
+                disabled={!duressPin}
+              >
+                Save Duress Settings
+              </button>
+              <div className="muted small" style={{ marginTop: 6 }}>
+                Use a different PIN than your real password. When entered, shows the decoy wallet.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Watch-Only Tab */}
+      {securityTab === "watchonly" && (
+        <div className="security-section">
+          <div className="security-section-title">
+            <span className="icon">👁️</span>
+            Watch-Only Addresses
+          </div>
+          <div className="muted small" style={{ marginBottom: 10 }}>
+            Track any Kaspa address without importing keys. Perfect for monitoring
+            whale wallets, cold storage, or friends' addresses.
+          </div>
+
+          {/* Watch List */}
+          {securityFeatures?.watchOnlyAddresses &&
+            securityFeatures.watchOnlyAddresses.length > 0 ? (
+            <div className="watch-list">
+              {securityFeatures.watchOnlyAddresses.map((watch) => (
+                <div key={watch.id} className="watch-item">
+                  <div
+                    className="watch-item-info watch-item-clickable"
+                    onClick={() => handleOpenWatchDetail(watch)}
+                    title="Tap to view transactions"
+                  >
+                    <span className="watch-item-label">{watch.label}</span>
+                    <span className="watch-item-copy-hint">
+                      Tap to view transactions
+                    </span>
+                  </div>
+                  <span className="watch-item-balance">
+                    {watchOnlyBalances[watch.id] !== undefined
+                      ? `${(watchOnlyBalances[watch.id] / 1e8).toFixed(2)} KAS`
+                      : "..."}
+                  </span>
+                  <button
+                    className="watch-item-remove"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveWatchOnly(watch.id);
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <div className="empty-state-icon">👁️</div>
+              <div>No addresses being watched yet</div>
+            </div>
+          )}
+
+          {/* Add Watch Address Form */}
+          <div className="add-watch-form">
+            <input
+              className="input"
+              placeholder="Kaspa address (kaspa:...)"
+              value={newWatchAddress}
+              onChange={(e) => setNewWatchAddress(e.target.value)}
+            />
+            <input
+              className="input"
+              placeholder="Label (optional)"
+              value={newWatchLabel}
+              onChange={(e) => setNewWatchLabel(e.target.value)}
+            />
+            <button
+              className="add-watch-btn"
+              onClick={handleAddWatchOnly}
+              disabled={!newWatchAddress || addingWatch}
+            >
+              {addingWatch ? "Adding..." : "Add Address"}
+            </button>
+            {error && <div className="error-text">{error}</div>}
+          </div>
+        </div>
+      )}
+
+      {/* Time Delay Tab */}
+      {securityTab === "timedelay" && (
+        <div className="security-section">
+          <div className="security-section-title">
+            <span className="icon">⏰</span>
+            Time-Delayed Transactions
+            <span className="feature-badge novel">Novel</span>
+          </div>
+          <div className="muted small" style={{ marginBottom: 10 }}>
+            Large transactions are queued for a delay period. You can cancel within
+            the window. Protects against hacks, scams, and impulsive decisions.
+          </div>
+
+          <div className="toggle-row">
+            <div className="toggle-info">
+              <span className="toggle-label">Enable Time Delay</span>
+              <span className="toggle-desc">
+                Queue large transactions for review
+              </span>
+            </div>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={timeDelayEnabled}
+                onChange={(e) => setTimeDelayEnabled(e.target.checked)}
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
+
+          {timeDelayEnabled && (
+            <div className="config-panel">
+              <div className="config-row">
+                <span className="config-label">Threshold (KAS)</span>
+                <input
+                  type="number"
+                  className="config-input"
+                  value={timeDelayThreshold}
+                  onChange={(e) => setTimeDelayThreshold(e.target.value)}
+                  min="1"
+                  step="100"
+                />
+              </div>
+              <div className="config-row">
+                <span className="config-label">Delay (hours)</span>
+                <input
+                  type="number"
+                  className="config-input"
+                  value={timeDelayHours}
+                  onChange={(e) => setTimeDelayHours(e.target.value)}
+                  min="1"
+                  max="168"
+                  step="1"
+                />
+              </div>
+              <button
+                className="primary-btn"
+                style={{ marginTop: 8, fontSize: 12 }}
+                onClick={handleSaveTimeDelay}
+              >
+                Save Delay Settings
+              </button>
+              <div className="muted small" style={{ marginTop: 6 }}>
+                Transactions above {timeDelayThreshold} KAS will wait {timeDelayHours} hours before execution.
+              </div>
+            </div>
+          )}
+
+          {/* Pending Transactions */}
+          {pendingTransactions.length > 0 && (
+            <>
+              <div className="card-title" style={{ marginTop: 12 }}>
+                Pending Transactions ({pendingTransactions.length})
+              </div>
+              <div className="pending-tx-list">
+                {pendingTransactions.map((tx) => (
+                  <div key={tx.id} className="pending-tx-item">
+                    <div className="pending-tx-header">
+                      <span className="pending-tx-amount">
+                        {(Number(tx.amountSompi) / 1e8).toFixed(2)} KAS
+                      </span>
+                      <span className="pending-tx-timer">
+                        {formatTimeRemaining(tx.executeAt)}
+                      </span>
+                    </div>
+                    <div className="pending-tx-address">{tx.to}</div>
+                    <div className="pending-tx-actions">
+                      <button
+                        className="pending-tx-cancel"
+                        onClick={() => handleCancelDelayedTx(tx.id)}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className="pending-tx-execute"
+                        onClick={() => handleExecuteDelayedTx(tx.id)}
+                      >
+                        Execute Now
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -1169,7 +1753,68 @@ function InnerApp() {
       <div className="content" ref={contentRef}>
         {mainPage === "home" && (
           <ScreenLayout title="Home">
+            {isDuressMode && (
+              <div className="duress-active-banner">
+                Duress Mode Active - Decoy wallet displayed
+              </div>
+            )}
             {HomeCard}
+            {/* Watch-Only Preview */}
+            {securityFeatures?.watchOnlyAddresses &&
+              securityFeatures.watchOnlyAddresses.length > 0 && (
+              <div className="card" style={{ marginTop: 8 }}>
+                <div className="row space-between" style={{ marginBottom: 6 }}>
+                  <div className="card-title" style={{ margin: 0 }}>Watching</div>
+                  <button
+                    className="secondary-btn pill"
+                    style={{ fontSize: 10, padding: "4px 8px" }}
+                    onClick={() => {
+                      setMainPage("security");
+                      setSecurityTab("watchonly");
+                    }}
+                  >
+                    Manage
+                  </button>
+                </div>
+                <div className="watch-list" style={{ marginTop: 0 }}>
+                  {securityFeatures.watchOnlyAddresses.slice(0, 3).map((watch) => (
+                    <div key={watch.id} className="watch-item" style={{ padding: 8 }}>
+                      <div
+                        className="watch-item-info watch-item-clickable"
+                        onClick={() => handleOpenWatchDetail(watch)}
+                        title="Tap to view transactions"
+                      >
+                        <span className="watch-item-label">{watch.label}</span>
+                        <span className="watch-item-copy-hint">
+                          Tap to view
+                        </span>
+                      </div>
+                      <span className="watch-item-balance">
+                        {watchOnlyBalances[watch.id] !== undefined
+                          ? `${(watchOnlyBalances[watch.id] / 1e8).toFixed(2)} KAS`
+                          : "..."}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Pending Transactions Alert */}
+            {pendingTransactions.length > 0 && (
+              <div
+                className="warning-banner"
+                style={{ marginTop: 8, cursor: "pointer" }}
+                onClick={() => {
+                  setMainPage("security");
+                  setSecurityTab("timedelay");
+                }}
+              >
+                <strong>⏰ {pendingTransactions.length} Queued Transaction{pendingTransactions.length > 1 ? "s" : ""}</strong>
+                <div className="muted small" style={{ color: "#fcd34d", marginTop: 4 }}>
+                  Tap to review pending time-delayed transactions
+                </div>
+              </div>
+            )}
             {TokensCard}
             {ActivityList}
           </ScreenLayout>
@@ -1186,6 +1831,88 @@ function InnerApp() {
         {mainPage === "settings" && (
           <ScreenLayout title="Settings">{SettingsCard}</ScreenLayout>
         )}
+        {mainPage === "security" && (
+          <ScreenLayout title="Security" onBack={() => setMainPage("settings")}>
+            {SecurityCard}
+          </ScreenLayout>
+        )}
+        {mainPage === "watchdetail" && selectedWatch && (
+          <ScreenLayout
+            title={selectedWatch.label}
+            onBack={() => {
+              setMainPage("security");
+              setSecurityTab("watchonly");
+              setSelectedWatch(null);
+              setWatchHistory([]);
+            }}
+          >
+            <div className="card" style={{ display: "grid", gap: 10 }}>
+              {/* Address Info */}
+              <div className="watch-detail-header">
+                <div className="watch-detail-balance">
+                  {watchOnlyBalances[selectedWatch.id] !== undefined
+                    ? `${(watchOnlyBalances[selectedWatch.id] / 1e8).toFixed(4)} KAS`
+                    : "Loading..."}
+                </div>
+                <div
+                  className="watch-detail-address"
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedWatch.address);
+                    setCopiedWatchId(selectedWatch.id);
+                    setTimeout(() => setCopiedWatchId(null), 1500);
+                  }}
+                  title="Click to copy"
+                >
+                  {copiedWatchId === selectedWatch.id
+                    ? "Copied!"
+                    : shorten(selectedWatch.address)}
+                </div>
+              </div>
+
+              {/* Transaction History */}
+              <div className="card-title" style={{ marginTop: 8 }}>
+                Transaction History
+              </div>
+              <div className="activity-list">
+                {watchHistoryLoading ? (
+                  <div className="muted small" style={{ textAlign: "center", padding: 16 }}>
+                    Loading transactions...
+                  </div>
+                ) : watchHistory.length > 0 ? (
+                  watchHistory.slice(0, 20).map((tx, idx) => {
+                    const isIncoming = tx.to === selectedWatch.address;
+                    return (
+                      <div key={idx} className="activity-item">
+                        <div className="row space-between">
+                          <span className={isIncoming ? "tx-incoming" : "tx-outgoing"}>
+                            {isIncoming ? "+" : "-"}
+                            {tx.amountSompi ? (Number(tx.amountSompi) / 1e8).toFixed(4) : 0} KAS
+                          </span>
+                          <span className={`badge ${tx.status || "pending"}`}>
+                            {tx.status || "pending"}
+                          </span>
+                        </div>
+                        <div className="muted small">
+                          {isIncoming ? "From: " : "To: "}
+                          {shorten(isIncoming ? tx.from : tx.to)}
+                        </div>
+                        {tx.time && (
+                          <div className="muted small" style={{ fontSize: 9 }}>
+                            {new Date(tx.time * 1000).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="muted small" style={{ textAlign: "center", padding: 16 }}>
+                    No transactions found
+                  </div>
+                )}
+              </div>
+            </div>
+          </ScreenLayout>
+        )}
         {mainPage === "token" && activeToken && (
           <ScreenLayout title={activeToken.symbol || "Token"}>
             {TokenDetailCard}
@@ -1194,6 +1921,7 @@ function InnerApp() {
       </div>
       <NavBar current={mainPage} onChange={setMainPage} />
       {ConfirmSendModal}
+      {DelayedTxModal}
     </div>
   );
 }

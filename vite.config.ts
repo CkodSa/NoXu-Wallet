@@ -23,6 +23,7 @@ const copyExtensionAssets = () => ({
       ? manifestSrc
       : resolve(__dirname, "src/extension/manifest.json");
 
+    // Copy manifest (contentScript is now built as IIFE with all deps bundled)
     fs.copyFileSync(manifestPath, join(distDir, "manifest.json"));
 
     if (fs.existsSync(iconsSrc)) {
@@ -56,17 +57,19 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: true,
+    modulePreload: {
+      polyfill: false
+    },
     rollupOptions: {
       input: {
         background: resolve(__dirname, "src/extension/background/index.ts"),
-        contentScript: resolve(__dirname, "src/extension/contentScript/index.ts"),
+        // contentScript is built separately with IIFE format (no ES modules)
         popup: resolve(__dirname, "src/ui/popup/index.html"),
         options: resolve(__dirname, "src/ui/options/index.html")
       },
       output: {
         entryFileNames: (chunk) => {
           if (chunk.name === "background") return "background.js";
-          if (chunk.name === "contentScript") return "contentScript.js";
           return "assets/[name].js";
         },
         assetFileNames: (asset) => {
