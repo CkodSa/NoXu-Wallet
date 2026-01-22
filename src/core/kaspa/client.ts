@@ -18,6 +18,7 @@ export type KaspaTx = {
   from: string;
   time?: number;
   status?: string;
+  isOutgoing?: boolean; // True if the queried address sent funds
 };
 
 // Zod schemas for API response validation
@@ -171,20 +172,43 @@ export class KaspaClient {
     );
 
     return (res || []).map((tx) => {
-      // Determine if this is incoming or outgoing
+      // Determine if this is incoming or outgoing based on inputs
       const isOutgoing = tx.inputs.some((inp) => inp.previous_outpoint_address === address);
+
+      // For outgoing: find the output that goes to someone else (recipient)
+      // For incoming: find the output that comes to us
       const relevantOutput = tx.outputs.find((out) =>
         isOutgoing ? out.script_public_key_address !== address : out.script_public_key_address === address
       );
-      const amount = relevantOutput?.amount || 0;
+
+      // Calculate amount - for outgoing, sum all outputs not going back to self
+      // For incoming, sum outputs coming to us
+      let amount = 0;
+      if (isOutgoing) {
+        // Sum of all outputs not going back to the sender (excluding change)
+        amount = tx.outputs
+          .filter((out) => out.script_public_key_address !== address)
+          .reduce((sum, out) => sum + out.amount, 0);
+      } else {
+        // Sum of all outputs coming to the address
+        amount = tx.outputs
+          .filter((out) => out.script_public_key_address === address)
+          .reduce((sum, out) => sum + out.amount, 0);
+      }
+
+      // Get the counterparty address
+      const counterparty = isOutgoing
+        ? relevantOutput?.script_public_key_address || tx.outputs[0]?.script_public_key_address || ""
+        : tx.inputs[0]?.previous_outpoint_address || "";
 
       return {
         txid: tx.transaction_id,
-        amountSompi: amount, // Keep as number for JSON serialization
-        to: relevantOutput?.script_public_key_address || "",
-        from: tx.inputs[0]?.previous_outpoint_address || "",
+        amountSompi: amount,
+        to: isOutgoing ? counterparty : address,
+        from: isOutgoing ? address : counterparty,
         time: tx.block_time,
         status: tx.is_accepted ? "confirmed" : "pending",
+        isOutgoing,
       };
     });
   }

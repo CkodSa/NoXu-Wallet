@@ -2263,12 +2263,13 @@ function InnerApp() {
                   </div>
                 ) : watchHistory.length > 0 ? (
                   watchHistory.slice(0, 20).map((tx, idx) => {
-                    const isIncoming = tx.to === selectedWatch.address;
+                    // Use the isOutgoing flag from the API, or fall back to checking from address
+                    const isOutgoing = tx.isOutgoing ?? (tx.from === selectedWatch.address);
                     return (
                       <div key={idx} className="activity-item">
                         <div className="row space-between">
-                          <span className={isIncoming ? "tx-incoming" : "tx-outgoing"}>
-                            {isIncoming ? "+" : "-"}
+                          <span className={isOutgoing ? "tx-outgoing" : "tx-incoming"}>
+                            {isOutgoing ? "-" : "+"}
                             {tx.amountSompi ? (Number(tx.amountSompi) / 1e8).toFixed(4) : 0} KAS
                           </span>
                           <span className={`badge ${tx.status || "pending"}`}>
@@ -2276,8 +2277,8 @@ function InnerApp() {
                           </span>
                         </div>
                         <div className="muted small">
-                          {isIncoming ? "From: " : "To: "}
-                          {shorten(isIncoming ? tx.from : tx.to)}
+                          {isOutgoing ? "To: " : "From: "}
+                          {shorten(isOutgoing ? tx.to : tx.from)}
                         </div>
                         {tx.time && (
                           <div className="muted small" style={{ fontSize: 9 }}>
