@@ -26,12 +26,6 @@
 - All transactions in duress mode are fake (no actual blockchain interaction).
 - Protects against physical coercion - attackers see only the decoy wallet.
 
-#### Watch-Only Portfolio Tracking
-- Any Kaspa address can be added for monitoring without importing private keys.
-- Watch-only addresses display real-time balances fetched from the Kaspa API.
-- Full transaction history is available for watched addresses.
-- Useful for tracking cold storage, whale wallets, or other addresses of interest.
-
 #### Time-Delayed Transactions
 - Transactions exceeding a configurable KAS threshold are automatically queued with a delay period.
 - Default threshold: 1000 KAS, default delay: 24 hours.
@@ -39,6 +33,15 @@
 - Transactions can be force-executed early if needed.
 - Delayed transactions are not executed while in duress mode.
 - Provides protection against theft, hacks, and impulsive decisions.
+
+### Portfolio Tools
+
+#### Watch-Only Address Tracking
+- Any Kaspa address can be added for monitoring without importing private keys.
+- Watch-only addresses display real-time balances fetched from the Kaspa API.
+- Full transaction history is available for watched addresses.
+- Useful for tracking cold storage, whale wallets, or other addresses of interest.
+- This is a convenience/utility feature, not a security feature.
 
 ### Build System
 - Vite builds the popup, options, and background as ES modules.

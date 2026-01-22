@@ -1335,7 +1335,24 @@ function InnerApp() {
         Security Features
       </button>
       <div className="muted small" style={{ marginTop: 4 }}>
-        Configure duress mode, watch-only tracking, and time-delayed transactions.
+        Configure duress mode and time-delayed transactions.
+      </div>
+
+      {/* Portfolio Tools */}
+      <div className="settings-divider" />
+      <div className="card-title">Portfolio Tools</div>
+      <button
+        className="secondary-btn"
+        style={{ fontSize: 13 }}
+        onClick={() => {
+          setMainPage("security");
+          setSecurityTab("watchonly");
+        }}
+      >
+        Watch-Only Addresses
+      </button>
+      <div className="muted small" style={{ marginTop: 4 }}>
+        Track any Kaspa address without importing keys.
       </div>
 
       {/* Pending Transactions Indicator */}
@@ -1452,16 +1469,16 @@ function InnerApp() {
           Duress Mode
         </button>
         <button
-          className={`security-tab ${securityTab === "watchonly" ? "active" : ""}`}
-          onClick={() => setSecurityTab("watchonly")}
-        >
-          Watch-Only
-        </button>
-        <button
           className={`security-tab ${securityTab === "timedelay" ? "active" : ""}`}
           onClick={() => setSecurityTab("timedelay")}
         >
           Time Delay
+        </button>
+        <button
+          className={`security-tab ${securityTab === "watchonly" ? "active" : ""}`}
+          onClick={() => setSecurityTab("watchonly")}
+        >
+          Watch-Only
         </button>
       </div>
 
@@ -1535,12 +1552,13 @@ function InnerApp() {
         </div>
       )}
 
-      {/* Watch-Only Tab */}
+      {/* Watch-Only Tab (Portfolio Tool) */}
       {securityTab === "watchonly" && (
         <div className="security-section">
           <div className="security-section-title">
             <span className="icon">👁️</span>
             Watch-Only Addresses
+            <span className="feature-badge" style={{ background: "rgba(59, 130, 246, 0.15)", color: "#93c5fd" }}>Portfolio</span>
           </div>
           <div className="muted small" style={{ marginBottom: 10 }}>
             Track any Kaspa address without importing keys. Perfect for monitoring

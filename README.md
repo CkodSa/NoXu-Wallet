@@ -28,8 +28,10 @@ NoXu Wallet enables users to securely manage their KAS holdings with industry-le
 
 ### Advanced Security Features
 - **Duress Mode (Decoy Wallet)** - Create a panic PIN that opens a decoy wallet with a fake balance. Protects against physical threats and coercion - attackers see only a small decoy balance while your real funds remain hidden.
-- **Watch-Only Portfolio Tracking** - Monitor any Kaspa address without importing keys. Perfect for tracking whale wallets, cold storage, or friends' addresses. View balances and full transaction history.
 - **Time-Delayed Transactions** - Large transactions are automatically queued with a configurable delay period. Cancel within the window if compromised. Protects against hacks, scams, and impulsive decisions.
+
+### Portfolio Tools
+- **Watch-Only Tracking** - Monitor any Kaspa address without importing keys. Perfect for tracking whale wallets, cold storage, or friends' addresses. View balances and full transaction history.
 
 ### Technical
 - **Cross-Browser Support** - Works on Chrome and Firefox
@@ -177,7 +179,6 @@ NoXu Wallet is built with security as the primary concern. See [SECURITY_AUDIT.m
 - HTTPS-only custom RPC URLs
 - Console security warnings
 - **Duress Mode** - Decoy wallet with fake balance for coercion protection
-- **Watch-Only Tracking** - Monitor addresses with full transaction history
 - **Time-Delayed Transactions** - Configurable delays for large transfers with cancellation window
 
 ## Browser Support
