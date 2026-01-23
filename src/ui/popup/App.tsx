@@ -13,6 +13,8 @@ import {
   type SecurityFeaturesState,
   type WatchOnlyAddress,
   type DelayedTransaction,
+  type AddressBookEntry,
+  type AddressBook,
 } from "../../core/securityFeatures";
 
 type OnboardingStep =
@@ -400,6 +402,99 @@ const InfoIcon: React.FC = () => (
   </svg>
 );
 
+const BookIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" width={16} height={16}>
+    <path
+      d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const RefreshIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" width={14} height={14}>
+    <path
+      d="M23 4v6h-6"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M1 20v-6h6"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const DownloadIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" width={14} height={14}>
+    <path
+      d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <polyline
+      points="7 10 12 15 17 10"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <line
+      x1={12}
+      y1={15}
+      x2={12}
+      y2={3}
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+const BackIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" width={16} height={16}>
+    <polyline
+      points="15 18 9 12 15 6"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 /* ------------------------- Layout helpers ------------------------- */
 
 const ScreenLayout: React.FC<{
@@ -532,6 +627,22 @@ function InnerApp() {
   const [watchHistory, setWatchHistory] = useState<any[]>([]); // Transaction history for selected watch address
   const [watchHistoryLoading, setWatchHistoryLoading] = useState(false);
 
+  // Address Book State
+  const [addressBook, setAddressBook] = useState<AddressBookEntry[]>([]);
+  const [newContactAddress, setNewContactAddress] = useState("");
+  const [newContactLabel, setNewContactLabel] = useState("");
+  const [newContactNotes, setNewContactNotes] = useState("");
+  const [addingContact, setAddingContact] = useState(false);
+  const [showAddressBookPicker, setShowAddressBookPicker] = useState(false);
+
+  // Refresh State
+  const [refreshingBalance, setRefreshingBalance] = useState(false);
+  const [refreshingHistory, setRefreshingHistory] = useState(false);
+
+  // Token Info State
+  const [tokenInfo, setTokenInfo] = useState<any>(null);
+  const [tokenInfoLoading, setTokenInfoLoading] = useState(false);
+
   // Settings section expand/collapse state
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     wallet: false,
@@ -580,6 +691,20 @@ function InnerApp() {
     }
   }, []);
 
+  // Load address book
+  const loadAddressBook = useCallback(async () => {
+    const res = await rpc("GET_ADDRESS_BOOK");
+    if (res?.ok) {
+      setAddressBook(res.addressBook?.entries || []);
+    }
+  }, []);
+
+  // Resolve address to label
+  const resolveAddressLabel = useCallback((address: string): string | null => {
+    const entry = addressBook.find((e) => e.address === address);
+    return entry?.label || null;
+  }, [addressBook]);
+
   // Load pending transactions
   const loadPendingTransactions = useCallback(async () => {
     const res = await rpc("GET_PENDING_TXS");
@@ -609,8 +734,9 @@ function InnerApp() {
     if (account) {
       loadSecurityFeatures();
       loadPendingTransactions();
+      loadAddressBook();
     }
-  }, [account, loadSecurityFeatures, loadPendingTransactions]);
+  }, [account, loadSecurityFeatures, loadPendingTransactions, loadAddressBook]);
 
   useEffect(() => {
     if (securityFeatures?.watchOnlyAddresses?.length) {
@@ -883,6 +1009,124 @@ function InnerApp() {
     }
   };
 
+  // Address Book Handlers
+  const handleAddContact = async () => {
+    if (!newContactAddress || addingContact) return;
+    setAddingContact(true);
+    setError(undefined);
+    const res = await rpc("ADD_ADDRESS_BOOK_ENTRY", {
+      address: newContactAddress,
+      label: newContactLabel || "Unnamed",
+      notes: newContactNotes || "",
+    });
+    setAddingContact(false);
+    if (res?.ok) {
+      setNewContactAddress("");
+      setNewContactLabel("");
+      setNewContactNotes("");
+      await loadAddressBook();
+      showSaveSuccess("Contact added");
+    } else {
+      setError(res?.error || "Failed to add contact");
+    }
+  };
+
+  const handleRemoveContact = async (id: string) => {
+    const res = await rpc("REMOVE_ADDRESS_BOOK_ENTRY", { id });
+    if (res?.ok) {
+      await loadAddressBook();
+    }
+  };
+
+  const handleSelectFromAddressBook = (address: string) => {
+    setRecipient(address);
+    setShowAddressBookPicker(false);
+  };
+
+  // Refresh Balance and History
+  const handleRefreshBalance = async () => {
+    setRefreshingBalance(true);
+    try {
+      const res = await rpc("GET_BALANCE");
+      if (res?.ok) {
+        const raw = res.balance;
+        let num: number;
+        if (typeof raw === "bigint") num = Number(raw);
+        else num = Number(raw);
+        if (Number.isNaN(num)) num = 0;
+        setBalance(num);
+      }
+      // Also refresh token balances
+      const tokenRes = await rpc("GET_TOKEN_BALANCES");
+      if (tokenRes?.ok && tokenRes.balances) {
+        setTokenBalances(tokenRes.balances);
+      }
+    } catch {
+      // Ignore errors
+    }
+    setRefreshingBalance(false);
+  };
+
+  const handleRefreshHistory = async () => {
+    setRefreshingHistory(true);
+    try {
+      const res = await rpc("GET_HISTORY");
+      if (res?.ok) setHistory(res.history);
+    } catch {
+      // Ignore errors
+    }
+    setRefreshingHistory(false);
+  };
+
+  // Export Transaction History to CSV
+  const handleExportCSV = () => {
+    if (!history || history.length === 0) return;
+
+    const headers = ["Date", "TXID", "Type", "Amount (KAS)", "From", "To", "Status", "Contact"];
+    const rows = history.map((tx) => {
+      const isOutgoing = tx.isOutgoing ?? (tx.from === account?.address);
+      const date = tx.time ? new Date(tx.time * 1000).toISOString() : "";
+      const amount = tx.amountSompi ? (Number(tx.amountSompi) / 1e8).toFixed(8) : "0";
+      const otherAddress = isOutgoing ? tx.to : tx.from;
+      const contact = resolveAddressLabel(otherAddress) || "";
+      return [
+        date,
+        tx.txid || "",
+        isOutgoing ? "Sent" : "Received",
+        amount,
+        tx.from || "",
+        tx.to || "",
+        tx.status || "pending",
+        contact,
+      ];
+    });
+
+    const csvContent = [headers, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `kaspa-transactions-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showSaveSuccess("CSV exported");
+  };
+
+  // Load Token Info
+  const loadTokenInfo = async (tick: string) => {
+    setTokenInfoLoading(true);
+    setTokenInfo(null);
+    try {
+      const res = await rpc("GET_TOKEN_INFO", { tick: tick.toLowerCase() });
+      if (res?.ok && res.info) {
+        setTokenInfo(res.info);
+      }
+    } catch {
+      // Ignore errors
+    }
+    setTokenInfoLoading(false);
+  };
+
   const confirmSeed = () => {
     if (!generatedMnemonic) return;
     const words = generatedMnemonic.split(" ");
@@ -1038,9 +1282,21 @@ function InnerApp() {
         </button>
       </div>
       <div className="balance-block">
-        <div className="label">Balance</div>
-        <div className="balance-value">
-          {balance !== undefined ? `${balance / 1e8} KAS` : "…"}
+        <div className="row space-between" style={{ alignItems: "flex-start" }}>
+          <div>
+            <div className="label">Balance</div>
+            <div className="balance-value">
+              {balance !== undefined ? `${(balance / 1e8).toFixed(4)} KAS` : "…"}
+            </div>
+          </div>
+          <button
+            className="refresh-btn"
+            onClick={handleRefreshBalance}
+            disabled={refreshingBalance}
+            title="Refresh balance"
+          >
+            <span className={refreshingBalance ? "spinning" : ""}><RefreshIcon /></span>
+          </button>
         </div>
         <div className="muted small" style={{ marginTop: 4 }}>
           Network: {network === "mainnet" ? "Kaspa Mainnet" : "Kaspa Testnet"}
@@ -1223,32 +1479,95 @@ function InnerApp() {
           </div>
         </div>
         <div className="muted small">
+          {activeToken.kind === "krc20" && (
+            <span className="token-badge" style={{ marginRight: 6 }}>KRC-20</span>
+          )}
           {network === "mainnet" ? "Mainnet" : "Testnet"}
         </div>
       </div>
 
-      <div className="token-detail-chart-header">
-        <span className="muted small">Price (demo)</span>
-        <div className="chart-tabs">
-          {(["D", "W", "M"] as const).map((r) => (
-            <button
-              key={r}
-              className={`chart-tab ${chartRange === r ? "active" : ""}`}
-              onClick={() => setChartRange(r)}
-            >
-              {r}
-            </button>
-          ))}
+      {/* Token Info Section for KRC-20 */}
+      {activeToken.kind === "krc20" && (
+        <div className="token-info-section">
+          {tokenInfoLoading ? (
+            <div className="muted small" style={{ textAlign: "center", padding: 8 }}>
+              Loading token info...
+            </div>
+          ) : tokenInfo ? (
+            <div className="token-info-grid">
+              <div className="token-info-item">
+                <span className="token-info-label">Total Supply</span>
+                <span className="token-info-value">
+                  {tokenInfo.maxSupply ? (Number(tokenInfo.maxSupply) / Math.pow(10, tokenInfo.decimals || 8)).toLocaleString() : "N/A"}
+                </span>
+              </div>
+              <div className="token-info-item">
+                <span className="token-info-label">Minted</span>
+                <span className="token-info-value">
+                  {tokenInfo.minted ? (Number(tokenInfo.minted) / Math.pow(10, tokenInfo.decimals || 8)).toLocaleString() : "N/A"}
+                </span>
+              </div>
+              <div className="token-info-item">
+                <span className="token-info-label">Holders</span>
+                <span className="token-info-value">{tokenInfo.holderTotal?.toLocaleString() || "N/A"}</span>
+              </div>
+              <div className="token-info-item">
+                <span className="token-info-label">Transfers</span>
+                <span className="token-info-value">{tokenInfo.transferTotal?.toLocaleString() || "N/A"}</span>
+              </div>
+              <div className="token-info-item">
+                <span className="token-info-label">State</span>
+                <span className={`token-info-value ${tokenInfo.state === "deployed" ? "state-active" : ""}`}>
+                  {tokenInfo.state || "N/A"}
+                </span>
+              </div>
+              <div className="token-info-item">
+                <span className="token-info-label">Decimals</span>
+                <span className="token-info-value">{tokenInfo.decimals ?? "N/A"}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="muted small" style={{ textAlign: "center", padding: 8 }}>
+              Token info not available
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
-      <div className="token-chart">
-        <TokenChart />
-      </div>
+      {/* Chart for KAS only */}
+      {activeToken.symbol === "KAS" && (
+        <>
+          <div className="token-detail-chart-header">
+            <span className="muted small">Price (demo)</span>
+            <div className="chart-tabs">
+              {(["D", "W", "M"] as const).map((r) => (
+                <button
+                  key={r}
+                  className={`chart-tab ${chartRange === r ? "active" : ""}`}
+                  onClick={() => setChartRange(r)}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="token-chart">
+            <TokenChart />
+          </div>
+        </>
+      )}
 
       <div className="token-detail-actions">
-        <button className="primary-btn" onClick={() => setMainPage("send")}>
-          Send
+        <button
+          className="primary-btn"
+          onClick={() => {
+            setSelectedToken(activeToken.symbol);
+            setMainPage("send");
+          }}
+          disabled={activeToken.kind === "krc20"}
+        >
+          {activeToken.kind === "krc20" ? "Send (Coming Soon)" : "Send"}
         </button>
         <button
           className="secondary-btn"
@@ -1264,22 +1583,61 @@ function InnerApp() {
 
   const ActivityList = (
     <div className="card">
-      <div className="card-title">Recent activity</div>
+      <div className="row space-between" style={{ marginBottom: 8 }}>
+        <div className="card-title" style={{ margin: 0 }}>Recent activity</div>
+        <div className="row" style={{ gap: 6 }}>
+          <button
+            className="icon-btn"
+            onClick={handleRefreshHistory}
+            disabled={refreshingHistory}
+            title="Refresh history"
+          >
+            <span className={refreshingHistory ? "spinning" : ""}><RefreshIcon /></span>
+          </button>
+          {history && history.length > 0 && (
+            <button
+              className="icon-btn"
+              onClick={handleExportCSV}
+              title="Export to CSV"
+            >
+              <DownloadIcon />
+            </button>
+          )}
+        </div>
+      </div>
       <div className="activity-list">
         {history && history.length > 0 ? (
-          history.slice(0, 10).map((tx, idx) => (
-            <div key={idx} className="activity-item">
-              <div className="row space-between">
-                <span>
-                  {tx.amountSompi ? Number(tx.amountSompi) / 1e8 : 0} KAS
-                </span>
-                <span className={`badge ${tx.status || "pending"}`}>
-                  {tx.status || "pending"}
-                </span>
+          history.slice(0, 10).map((tx, idx) => {
+            const isOutgoing = tx.isOutgoing ?? (tx.from === account?.address);
+            const otherAddress = isOutgoing ? tx.to : tx.from;
+            const contactLabel = resolveAddressLabel(otherAddress);
+            return (
+              <div key={idx} className="activity-item">
+                <div className="row space-between">
+                  <span className={isOutgoing ? "tx-outgoing" : "tx-incoming"}>
+                    {isOutgoing ? "-" : "+"}
+                    {tx.amountSompi ? (Number(tx.amountSompi) / 1e8).toFixed(4) : 0} KAS
+                  </span>
+                  <span className={`badge ${tx.status || "pending"}`}>
+                    {tx.status || "pending"}
+                  </span>
+                </div>
+                <div className="muted small">
+                  {isOutgoing ? "To: " : "From: "}
+                  {contactLabel ? (
+                    <span className="contact-label">{contactLabel}</span>
+                  ) : (
+                    shorten(otherAddress)
+                  )}
+                </div>
+                {tx.time && (
+                  <div className="muted small" style={{ fontSize: 9, opacity: 0.7 }}>
+                    {new Date(tx.time * 1000).toLocaleString()}
+                  </div>
+                )}
               </div>
-              <div className="muted small">{tx.txid?.slice(0, 12)}...</div>
-            </div>
-          ))
+            );
+          })
         ) : (
           <div className="muted small">No transactions yet.</div>
         )}
@@ -1289,15 +1647,21 @@ function InnerApp() {
 
   const ReceiveCard = (
     <div className="card" style={{ display: "grid", gap: 10 }}>
-      <div className="muted">
-        Share this Kaspa{" "}
-        {network === "mainnet" ? "mainnet" : "testnet"} address to receive
-        funds.
+      <div className="muted" style={{ textAlign: "center" }}>
+        Scan QR code or copy address to receive Kaspa{" "}
+        {network === "mainnet" ? "(Mainnet)" : "(Testnet)"}
       </div>
-      <div className="address-full">{account?.address}</div>
+      {/* QR Code */}
+      <div className="qr-container">
+        <QRCode value={account?.address || ""} size={160} />
+      </div>
+      <div className="address-full" style={{ textAlign: "center", fontSize: 11 }}>{account?.address}</div>
       <button
         className="secondary-btn"
-        onClick={() => navigator.clipboard.writeText(account?.address || "")}
+        onClick={() => {
+          navigator.clipboard.writeText(account?.address || "");
+          showSaveSuccess("Address copied");
+        }}
       >
         Copy address
       </button>
@@ -1321,12 +1685,40 @@ function InnerApp() {
           ))}
         </select>
       </div>
-      <input
-        className="input"
-        placeholder="Recipient address"
-        value={recipient}
-        onChange={(e) => setRecipient(e.target.value)}
-      />
+      <div>
+        <div className="row space-between" style={{ marginBottom: 4 }}>
+          <span className="muted small">Recipient</span>
+          {addressBook.length > 0 && (
+            <button
+              className="address-book-toggle"
+              onClick={() => setShowAddressBookPicker(!showAddressBookPicker)}
+            >
+              <BookIcon /> Contacts
+            </button>
+          )}
+        </div>
+        <input
+          className="input"
+          placeholder="Recipient address"
+          value={recipient}
+          onChange={(e) => setRecipient(e.target.value)}
+        />
+        {/* Address Book Picker */}
+        {showAddressBookPicker && addressBook.length > 0 && (
+          <div className="address-book-picker">
+            {addressBook.map((contact) => (
+              <button
+                key={contact.id}
+                className="contact-pick-item"
+                onClick={() => handleSelectFromAddressBook(contact.address)}
+              >
+                <span className="contact-pick-label">{contact.label}</span>
+                <span className="contact-pick-address">{shorten(contact.address)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       <input
         className="input"
         placeholder={`Amount (${selectedToken})`}
@@ -1338,11 +1730,11 @@ function InnerApp() {
         onClick={handleSendClick}
         disabled={selectedToken !== "KAS"}
       >
-        {selectedToken === "KAS" ? "Review Transaction" : "Only KAS supported (stub)"}
+        {selectedToken === "KAS" ? "Review Transaction" : "KRC-20 transfers coming soon"}
       </button>
       {selectedToken !== "KAS" && (
         <div className="muted small">
-          Other tokens are UI-only placeholders for now.
+          KRC-20 token transfers are not yet supported. Only KAS can be sent.
         </div>
       )}
       {error && <div className="error-text">{error}</div>}
@@ -1945,6 +2337,83 @@ function InnerApp() {
                 {error && <div className="error-text">{error}</div>}
               </div>
             </div>
+
+            {/* Address Book Subsection */}
+            <div className="settings-subsection">
+              <div className="settings-subsection-title">
+                <BookIcon /> Address Book
+              </div>
+              <div className="muted small" style={{ marginBottom: 8 }}>
+                Save frequently used addresses with labels. Contacts appear in send screen
+                and transaction history.
+              </div>
+
+              {/* Contact List */}
+              {addressBook.length > 0 ? (
+                <div className="watch-list">
+                  {addressBook.map((contact) => (
+                    <div key={contact.id} className="watch-item">
+                      <div className="watch-item-info">
+                        <span className="watch-item-label">{contact.label}</span>
+                        <span className="watch-item-copy-hint">
+                          {shorten(contact.address)}
+                        </span>
+                      </div>
+                      <button
+                        className="secondary-btn pill"
+                        style={{ fontSize: 10, padding: "4px 8px" }}
+                        onClick={() => {
+                          navigator.clipboard.writeText(contact.address);
+                          showSaveSuccess("Address copied");
+                        }}
+                      >
+                        Copy
+                      </button>
+                      <button
+                        className="watch-item-remove"
+                        onClick={() => handleRemoveContact(contact.id)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-state-icon">📖</div>
+                  <div>No contacts saved yet</div>
+                </div>
+              )}
+
+              {/* Add Contact Form */}
+              <div className="add-watch-form">
+                <input
+                  className="input"
+                  placeholder="Kaspa address (kaspa:...)"
+                  value={newContactAddress}
+                  onChange={(e) => setNewContactAddress(e.target.value)}
+                />
+                <input
+                  className="input"
+                  placeholder="Label (e.g., Exchange, Friend)"
+                  value={newContactLabel}
+                  onChange={(e) => setNewContactLabel(e.target.value)}
+                />
+                <input
+                  className="input"
+                  placeholder="Notes (optional)"
+                  value={newContactNotes}
+                  onChange={(e) => setNewContactNotes(e.target.value)}
+                />
+                <button
+                  className="add-watch-btn"
+                  onClick={handleAddContact}
+                  disabled={!newContactAddress || addingContact}
+                >
+                  {addingContact ? "Adding..." : "Add Contact"}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -2111,6 +2580,12 @@ function InnerApp() {
               setSelectedToken(token.symbol);
               setActiveToken(token);
               setMainPage("token");
+              // Load token info for KRC-20 tokens
+              if (token.kind === "krc20") {
+                loadTokenInfo(token.symbol);
+              } else {
+                setTokenInfo(null);
+              }
             }}
           >
             <div className="token-main">
@@ -2298,7 +2773,14 @@ function InnerApp() {
           </ScreenLayout>
         )}
         {mainPage === "token" && activeToken && (
-          <ScreenLayout title={activeToken.symbol || "Token"}>
+          <ScreenLayout
+            title={activeToken.symbol || "Token"}
+            onBack={() => {
+              setMainPage("home");
+              setActiveToken(null);
+              setTokenInfo(null);
+            }}
+          >
             {TokenDetailCard}
           </ScreenLayout>
         )}
@@ -2308,6 +2790,335 @@ function InnerApp() {
       {DelayedTxModal}
     </div>
   );
+}
+
+/* ---------- Real QR Code Generator ---------- */
+
+// Proper QR Code implementation (Version 4, Error Correction Level L)
+const QRCode: React.FC<{ value: string; size?: number }> = ({ value, size = 180 }) => {
+  const [qrMatrix, setQrMatrix] = React.useState<boolean[][] | null>(null);
+
+  React.useEffect(() => {
+    if (!value) {
+      setQrMatrix(null);
+      return;
+    }
+    try {
+      const matrix = generateRealQRCode(value);
+      setQrMatrix(matrix);
+    } catch (e) {
+      console.error("QR generation error:", e);
+      setQrMatrix(null);
+    }
+  }, [value]);
+
+  if (!value || !qrMatrix) {
+    return (
+      <div
+        style={{
+          width: size,
+          height: size,
+          background: "#fff",
+          borderRadius: 16,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+        }}
+      >
+        <span style={{ color: "#666", fontSize: 12 }}>No address</span>
+      </div>
+    );
+  }
+
+  const qrSize = qrMatrix.length;
+  const padding = 4; // quiet zone
+  const totalSize = qrSize + padding * 2;
+  const moduleSize = size / totalSize;
+
+  return (
+    <div
+      style={{
+        padding: 12,
+        background: "#fff",
+        borderRadius: 16,
+        boxShadow: "0 4px 24px rgba(0,0,0,0.12)",
+        display: "inline-block",
+      }}
+    >
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${totalSize} ${totalSize}`}
+        style={{ display: "block" }}
+      >
+        <rect x={0} y={0} width={totalSize} height={totalSize} fill="#fff" />
+        {qrMatrix.map((row, y) =>
+          row.map((cell, x) =>
+            cell ? (
+              <rect
+                key={`${x}-${y}`}
+                x={x + padding}
+                y={y + padding}
+                width={1.1}
+                height={1.1}
+                fill="#1a1a2e"
+                rx={0.15}
+              />
+            ) : null
+          )
+        )}
+      </svg>
+    </div>
+  );
+};
+
+// Real QR Code generator - implements ISO/IEC 18004 for alphanumeric data
+function generateRealQRCode(text: string): boolean[][] {
+  // Use Version 4, Error Correction Level L (can hold ~78 alphanumeric chars)
+  const version = 4;
+  const size = version * 4 + 17; // 33x33 for version 4
+
+  // Initialize matrix
+  const matrix: boolean[][] = Array(size).fill(null).map(() => Array(size).fill(false));
+  const reserved: boolean[][] = Array(size).fill(null).map(() => Array(size).fill(false));
+
+  // Add finder patterns at corners
+  const addFinderPattern = (centerX: number, centerY: number) => {
+    for (let dy = -4; dy <= 4; dy++) {
+      for (let dx = -4; dx <= 4; dx++) {
+        const x = centerX + dx;
+        const y = centerY + dy;
+        if (x < 0 || x >= size || y < 0 || y >= size) continue;
+
+        const adx = Math.abs(dx);
+        const ady = Math.abs(dy);
+        const max = Math.max(adx, ady);
+
+        if (max === 4) {
+          // Separator (white)
+          reserved[y][x] = true;
+        } else if (max === 3 || max === 1) {
+          // Border and inner (black)
+          matrix[y][x] = true;
+          reserved[y][x] = true;
+        } else if (max === 2) {
+          // White ring
+          reserved[y][x] = true;
+        } else {
+          // Center (black)
+          matrix[y][x] = true;
+          reserved[y][x] = true;
+        }
+      }
+    }
+  };
+
+  addFinderPattern(3, 3);
+  addFinderPattern(size - 4, 3);
+  addFinderPattern(3, size - 4);
+
+  // Add alignment pattern for version 4 at position (26, 26)
+  const alignX = size - 7;
+  const alignY = size - 7;
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      const x = alignX + dx;
+      const y = alignY + dy;
+      const adx = Math.abs(dx);
+      const ady = Math.abs(dy);
+      const max = Math.max(adx, ady);
+
+      matrix[y][x] = max === 2 || max === 0;
+      reserved[y][x] = true;
+    }
+  }
+
+  // Add timing patterns
+  for (let i = 8; i < size - 8; i++) {
+    matrix[6][i] = i % 2 === 0;
+    matrix[i][6] = i % 2 === 0;
+    reserved[6][i] = true;
+    reserved[i][6] = true;
+  }
+
+  // Dark module
+  matrix[size - 8][8] = true;
+  reserved[size - 8][8] = true;
+
+  // Reserve format info areas
+  for (let i = 0; i < 9; i++) {
+    reserved[8][i] = true;
+    reserved[i][8] = true;
+  }
+  for (let i = 0; i < 8; i++) {
+    reserved[8][size - 1 - i] = true;
+    reserved[size - 1 - i][8] = true;
+  }
+
+  // Encode data as alphanumeric
+  const alphanumericTable = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
+  const upperText = text.toUpperCase();
+
+  // Build data bits
+  let bits = "";
+  // Mode indicator (alphanumeric = 0010)
+  bits += "0010";
+  // Character count indicator (9 bits for version 4 alphanumeric)
+  bits += upperText.length.toString(2).padStart(9, "0");
+
+  // Encode character pairs
+  for (let i = 0; i < upperText.length; i += 2) {
+    const c1 = alphanumericTable.indexOf(upperText[i]);
+    if (i + 1 < upperText.length) {
+      const c2 = alphanumericTable.indexOf(upperText[i + 1]);
+      const val = c1 * 45 + c2;
+      bits += val.toString(2).padStart(11, "0");
+    } else {
+      bits += c1.toString(2).padStart(6, "0");
+    }
+  }
+
+  // Add terminator
+  bits += "0000";
+
+  // Pad to byte boundary
+  while (bits.length % 8 !== 0) bits += "0";
+
+  // Add padding codewords (80 data codewords for version 4-L)
+  const targetBits = 80 * 8;
+  let padToggle = true;
+  while (bits.length < targetBits) {
+    bits += padToggle ? "11101100" : "00010001";
+    padToggle = !padToggle;
+  }
+
+  // Convert to codewords
+  const codewords: number[] = [];
+  for (let i = 0; i < bits.length; i += 8) {
+    codewords.push(parseInt(bits.substr(i, 8), 2));
+  }
+
+  // Generate error correction codewords (Reed-Solomon)
+  const ecCodewords = generateECCodewords(codewords, 20);
+
+  // Combine data and EC codewords
+  const allCodewords = [...codewords, ...ecCodewords];
+
+  // Convert back to bits
+  let dataBits = "";
+  for (const cw of allCodewords) {
+    dataBits += cw.toString(2).padStart(8, "0");
+  }
+
+  // Place data in matrix using zigzag pattern
+  let bitIndex = 0;
+  let upward = true;
+
+  for (let right = size - 1; right >= 0; right -= 2) {
+    if (right === 6) right = 5; // Skip timing pattern column
+
+    for (let v = 0; v < size; v++) {
+      const y = upward ? size - 1 - v : v;
+
+      for (let dx = 0; dx <= 1; dx++) {
+        const x = right - dx;
+        if (x < 0) continue;
+        if (reserved[y][x]) continue;
+
+        if (bitIndex < dataBits.length) {
+          matrix[y][x] = dataBits[bitIndex] === "1";
+          bitIndex++;
+        }
+      }
+    }
+    upward = !upward;
+  }
+
+  // Apply mask pattern 0 (checkerboard)
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if (!reserved[y][x] && (y + x) % 2 === 0) {
+        matrix[y][x] = !matrix[y][x];
+      }
+    }
+  }
+
+  // Add format info (mask 0, EC level L = 01)
+  // Pre-computed format string for mask 0, level L
+  const formatBits = "111011111000100";
+
+  // Horizontal format info (around top-left)
+  for (let i = 0; i < 6; i++) {
+    matrix[8][i] = formatBits[i] === "1";
+  }
+  matrix[8][7] = formatBits[6] === "1";
+  matrix[8][8] = formatBits[7] === "1";
+  matrix[7][8] = formatBits[8] === "1";
+
+  for (let i = 0; i < 6; i++) {
+    matrix[5 - i][8] = formatBits[9 + i] === "1";
+  }
+
+  // Vertical format info (around top-right and bottom-left)
+  for (let i = 0; i < 7; i++) {
+    matrix[8][size - 1 - i] = formatBits[i] === "1";
+  }
+  for (let i = 0; i < 8; i++) {
+    matrix[size - 8 + i][8] = formatBits[7 + i] === "1";
+  }
+
+  return matrix;
+}
+
+// Reed-Solomon error correction generator
+function generateECCodewords(data: number[], ecCount: number): number[] {
+  // GF(256) with primitive polynomial x^8 + x^4 + x^3 + x^2 + 1
+  const gfExp: number[] = new Array(512);
+  const gfLog: number[] = new Array(256);
+
+  let x = 1;
+  for (let i = 0; i < 255; i++) {
+    gfExp[i] = x;
+    gfLog[x] = i;
+    x <<= 1;
+    if (x >= 256) x ^= 0x11d;
+  }
+  for (let i = 255; i < 512; i++) {
+    gfExp[i] = gfExp[i - 255];
+  }
+  gfLog[0] = 0;
+
+  const gfMul = (a: number, b: number): number => {
+    if (a === 0 || b === 0) return 0;
+    return gfExp[gfLog[a] + gfLog[b]];
+  };
+
+  // Generate generator polynomial for ecCount EC codewords
+  let gen = [1];
+  for (let i = 0; i < ecCount; i++) {
+    const newGen = new Array(gen.length + 1).fill(0);
+    for (let j = 0; j < gen.length; j++) {
+      newGen[j] ^= gen[j];
+      newGen[j + 1] ^= gfMul(gen[j], gfExp[i]);
+    }
+    gen = newGen;
+  }
+
+  // Polynomial division
+  const result = new Array(ecCount).fill(0);
+  for (let i = 0; i < data.length; i++) {
+    const coef = data[i] ^ result[0];
+    result.shift();
+    result.push(0);
+    if (coef !== 0) {
+      for (let j = 0; j < ecCount; j++) {
+        result[j] ^= gfMul(gen[j + 1], coef);
+      }
+    }
+  }
+
+  return result;
 }
 
 /* ---------- Tiny SVG chart for token detail ---------- */

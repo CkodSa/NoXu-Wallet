@@ -1512,3 +1512,226 @@ textarea.input:focus {
   background: rgba(249, 115, 115, 0.1) !important;
   border-color: rgba(249, 115, 115, 0.6) !important;
 }
+
+/* ==================== New Feature Styles ==================== */
+
+/* Refresh Button */
+.refresh-btn {
+  padding: 6px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(110, 199, 187, 0.15);
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.refresh-btn:hover {
+  background: rgba(110, 199, 187, 0.25);
+}
+
+.refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.icon-btn {
+  padding: 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.icon-btn:hover {
+  background: rgba(110, 199, 187, 0.15);
+  color: var(--accent);
+}
+
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Spinning animation for refresh */
+.spinning {
+  display: inline-flex;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Contact Label in History */
+.contact-label {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* QR Code Container */
+.qr-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(135deg, rgba(110, 199, 187, 0.08) 0%, rgba(110, 199, 187, 0.03) 100%);
+  border-radius: 20px;
+  margin: 12px 0;
+  border: 1px solid rgba(110, 199, 187, 0.15);
+}
+
+.qr-container::before {
+  content: "Scan to receive KAS";
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+/* Address Book Picker */
+.address-book-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(110, 199, 187, 0.15);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.address-book-toggle:hover {
+  background: rgba(110, 199, 187, 0.25);
+}
+
+.address-book-picker {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(7, 10, 12, 0.95);
+  border: 1px solid var(--border-subtle);
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.contact-pick-item {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(110, 199, 187, 0.08);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+}
+
+.contact-pick-item:last-child {
+  margin-bottom: 0;
+}
+
+.contact-pick-item:hover {
+  background: rgba(110, 199, 187, 0.2);
+}
+
+.contact-pick-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.contact-pick-address {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+/* Token Info Section */
+.token-info-section {
+  margin: 12px 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(7, 10, 12, 0.9);
+  border: 1px solid var(--border-subtle);
+}
+
+.token-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.token-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.token-info-label {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.token-info-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.token-info-value.state-active {
+  color: #86efac;
+}
+
+/* Badge styling improvements */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.badge.pending {
+  background: rgba(234, 179, 8, 0.15);
+  color: #fcd34d;
+}
+
+.badge.confirmed,
+.badge.executed {
+  background: rgba(34, 197, 94, 0.15);
+  color: #86efac;
+}
+
+.badge.failed,
+.badge.cancelled {
+  background: rgba(249, 115, 115, 0.15);
+  color: #fca5a5;
+}
+
+/* Settings section icon sizing fix */
+.settings-section-icon svg {
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+}

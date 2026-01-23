@@ -36,7 +36,14 @@ export type MessageType =
   // KRC-20 Token Features
   | "GET_TOKEN_BALANCES"
   | "GET_TOKEN_INFO"
-  | "GET_TOKEN_LIST";
+  | "GET_TOKEN_LIST"
+  | "SEND_KRC20_TX"
+  // Address Book Features
+  | "GET_ADDRESS_BOOK"
+  | "ADD_ADDRESS_BOOK_ENTRY"
+  | "UPDATE_ADDRESS_BOOK_ENTRY"
+  | "REMOVE_ADDRESS_BOOK_ENTRY"
+  | "RESOLVE_ADDRESS_LABEL";
 
 export type RpcMessage<T = any> = {
   type: MessageType;

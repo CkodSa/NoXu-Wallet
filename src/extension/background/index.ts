@@ -16,6 +16,8 @@ import {
   type SecurityFeaturesState,
   type WatchOnlyAddress,
   type DelayedTransaction,
+  type AddressBook,
+  type AddressBookEntry,
 } from "../../core/securityFeatures";
 
 // Console security warning (shows in service worker console)
@@ -31,9 +33,10 @@ console.log(
 const STORAGE_KEY = "kaspa_wallet_state";
 const SETTINGS_KEY = "kaspa_wallet_settings";
 const SECURITY_KEY = "kaspa_security_features";
+const ADDRESS_BOOK_KEY = "kaspa_address_book";
 
 // Default auto-lock timeout in minutes (0 = disabled)
-const DEFAULT_AUTO_LOCK_MINUTES = 15;
+const DEFAULT_AUTO_LOCK_MINUTES = 5;
 
 type WalletSettings = {
   autoLockMinutes: number;
@@ -49,6 +52,9 @@ let settings: WalletSettings = {
 
 // Security features state
 let securityFeatures: SecurityFeaturesState = { ...DEFAULT_SECURITY_FEATURES };
+
+// Address book state
+let addressBook: AddressBook = { entries: [] };
 
 // Track if currently in duress mode (decoy wallet active)
 let isDuressMode = false;
@@ -148,6 +154,35 @@ async function persistSecurityFeatures(): Promise<void> {
 }
 
 /**
+ * Load address book from browser.storage.local
+ */
+async function loadAddressBook(): Promise<void> {
+  try {
+    const res = await browser.storage.local.get([ADDRESS_BOOK_KEY]);
+    const raw = res?.[ADDRESS_BOOK_KEY];
+
+    if (raw && typeof raw === "object") {
+      addressBook = {
+        entries: Array.isArray((raw as AddressBook).entries) ? (raw as AddressBook).entries : [],
+      };
+    }
+  } catch (err) {
+    console.error("[wallet] Failed to load address book:", err);
+  }
+}
+
+/**
+ * Persist address book to browser.storage.local
+ */
+async function persistAddressBook(): Promise<void> {
+  try {
+    await browser.storage.local.set({ [ADDRESS_BOOK_KEY]: addressBook });
+  } catch (err) {
+    console.error("[wallet] Failed to persist address book:", err);
+  }
+}
+
+/**
  * Check and execute ready delayed transactions
  */
 async function checkDelayedTransactions(): Promise<void> {
@@ -235,6 +270,7 @@ const initPromise = Promise.all([
   loadPersistedWallet(),
   loadSettings(),
   loadSecurityFeatures(),
+  loadAddressBook(),
 ]).then(() => {
   // Start delayed transaction checker after loading
   startDelayedTxChecker();
@@ -350,6 +386,10 @@ browser.runtime.onMessage.addListener(
             if (isDuressMode) {
               return { ok: true, balance: securityFeatures.duressMode.decoyBalance };
             }
+            // Check if wallet is unlocked
+            if (!wallet.getAccount()) {
+              return { ok: false, error: "Wallet is locked", locked: true };
+            }
             const balance = await wallet.getBalance();
             return { ok: true, balance };
           }
@@ -358,6 +398,10 @@ browser.runtime.onMessage.addListener(
             // Return minimal fake history in duress mode
             if (isDuressMode) {
               return { ok: true, history: [] };
+            }
+            // Check if wallet is unlocked
+            if (!wallet.getAccount()) {
+              return { ok: false, error: "Wallet is locked", locked: true };
             }
             const history = await wallet.getHistory();
             return { ok: true, history };
@@ -380,6 +424,11 @@ browser.runtime.onMessage.addListener(
                 txid: "decoy-" + generateId(),
                 isDecoy: true,
               };
+            }
+
+            // Check if wallet is unlocked
+            if (!wallet.getAccount()) {
+              return { ok: false, error: "Wallet is locked", locked: true };
             }
 
             // Check if transaction should be delayed (unless forced immediate)
@@ -759,6 +808,61 @@ browser.runtime.onMessage.addListener(
             } catch (err: any) {
               return { ok: false, error: err?.message || "Failed to fetch token list" };
             }
+          }
+
+          // ==================== ADDRESS BOOK FEATURES ====================
+
+          case "GET_ADDRESS_BOOK": {
+            return { ok: true, addressBook };
+          }
+
+          case "ADD_ADDRESS_BOOK_ENTRY": {
+            const { address, label, notes } = message.payload;
+            if (!isValidKaspaAddress(address)) {
+              return { ok: false, error: "Invalid Kaspa address" };
+            }
+            // Check for duplicates
+            if (addressBook.entries.some((e) => e.address === address)) {
+              return { ok: false, error: "Address already in address book" };
+            }
+            const now = Date.now();
+            const entry: AddressBookEntry = {
+              id: generateId(),
+              address,
+              label: label || "Unnamed",
+              notes: notes || "",
+              createdAt: now,
+              updatedAt: now,
+            };
+            addressBook.entries.push(entry);
+            await persistAddressBook();
+            return { ok: true, entry };
+          }
+
+          case "UPDATE_ADDRESS_BOOK_ENTRY": {
+            const { id, label, notes } = message.payload;
+            const entry = addressBook.entries.find((e) => e.id === id);
+            if (!entry) {
+              return { ok: false, error: "Entry not found" };
+            }
+            if (label !== undefined) entry.label = label;
+            if (notes !== undefined) entry.notes = notes;
+            entry.updatedAt = Date.now();
+            await persistAddressBook();
+            return { ok: true, entry };
+          }
+
+          case "REMOVE_ADDRESS_BOOK_ENTRY": {
+            const { id } = message.payload;
+            addressBook.entries = addressBook.entries.filter((e) => e.id !== id);
+            await persistAddressBook();
+            return { ok: true };
+          }
+
+          case "RESOLVE_ADDRESS_LABEL": {
+            const { address } = message.payload;
+            const entry = addressBook.entries.find((e) => e.address === address);
+            return { ok: true, label: entry?.label || null, entry: entry || null };
           }
 
           default: {

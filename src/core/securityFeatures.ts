@@ -15,6 +15,19 @@ export type WatchOnlyAddress = {
   addedAt: number;
 };
 
+export type AddressBookEntry = {
+  id: string;
+  address: string;
+  label: string;
+  notes?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type AddressBook = {
+  entries: AddressBookEntry[];
+};
+
 export type DelayedTransaction = {
   id: string;
   to: string;

@@ -14,16 +14,19 @@ NoXu Wallet enables users to securely manage their KAS holdings with industry-le
 
 ### Core Wallet
 - **Create & Import Wallets** - Generate new wallets with 12 or 24-word BIP39 mnemonics or import existing seed phrases
-- **Send & Receive KAS** - Full transaction support with confirmation modals
-- **Balance & History** - Real-time balance updates and transaction history
-- **KRC-20 Token Support** - View and track KRC-20 tokens on Kaspa via Kasplex indexer
+- **Send & Receive KAS** - Full transaction support with confirmation modals and scannable QR codes
+- **Balance & History** - Real-time balance updates, transaction history with manual refresh
+- **Address Book** - Save frequently used addresses with labels for easy sending
+- **Contact Labels in History** - Transaction history shows contact names instead of raw addresses
+- **Export Transaction History** - Download your complete transaction history as CSV
+- **KRC-20 Token Support** - View and track KRC-20 tokens on Kaspa via Kasplex indexer with detailed token info
 - **Hide Small Balances** - Option to hide tokens with small balances for cleaner display
 - **Network Switching** - Support for Kaspa mainnet and testnet with custom RPC configuration
 
 ### Security
 - **Argon2id + AES-256-GCM Encryption** - Military-grade encryption for stored data
 - **Memory Wiping** - Automatic clearing of sensitive data from memory after use
-- **Auto-Lock** - Configurable automatic wallet locking on idle or system lock (default: 15 min)
+- **Auto-Lock** - Configurable automatic wallet locking on idle or system lock (default: 5 min)
 - **dApp Approval System** - Granular control over which sites can connect
 - **Phishing Protection** - Extension ID verification and console security warnings
 - **No Tracking** - Zero analytics or telemetry
@@ -34,6 +37,7 @@ NoXu Wallet enables users to securely manage their KAS holdings with industry-le
 
 ### Portfolio Tools
 - **Watch-Only Tracking** - Monitor any Kaspa address without importing keys. Perfect for tracking whale wallets, cold storage, or friends' addresses. View balances and full transaction history.
+- **Address Book** - Save and manage frequently used addresses with custom labels and notes.
 
 ### Technical
 - **Cross-Browser Support** - Works on Chrome and Firefox
@@ -204,6 +208,10 @@ NoXu Wallet is built with security as the primary concern. See [SECURITY_AUDIT.m
 - [x] Watch-only address tracking with transaction history
 - [x] Time-delayed transactions for large transfers
 - [x] KRC-20 token support (view balances via Kasplex indexer)
+- [x] Address book with contact labels
+- [x] QR code for receiving payments
+- [x] Transaction history CSV export
+- [x] Manual refresh for balance and history
 - [ ] Full Kaspa transaction signing (Schnorr signatures)
 - [ ] KRC-20 token transfers
 - [ ] Hardware wallet integration (Ledger)
