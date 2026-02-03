@@ -166,39 +166,41 @@ export class KaspaClient {
   async getTransactions(address: string, limit: number = 50): Promise<KaspaTx[]> {
     // REST API: GET /addresses/{kaspaAddress}/full-transactions
     // Limit to recent transactions to avoid timeouts on addresses with many txs
+    // Use resolve_previous_outpoints=full to get input addresses and amounts
     const res = await this.restCall(
-      `/addresses/${address}/full-transactions?limit=${limit}`,
+      `/addresses/${address}/full-transactions?limit=${limit}&resolve_previous_outpoints=full`,
       TransactionsResponseSchema
     );
 
     return (res || []).map((tx) => {
-      // Determine if this is incoming or outgoing based on inputs
-      const isOutgoing = tx.inputs.some((inp) => inp.previous_outpoint_address === address);
+      // Calculate total input from this address (what we spent)
+      const totalInputFromAddress = tx.inputs
+        .filter((inp) => inp.previous_outpoint_address === address)
+        .reduce((sum, inp) => sum + (inp.previous_outpoint_amount || 0), 0);
 
-      // For outgoing: find the output that goes to someone else (recipient)
-      // For incoming: find the output that comes to us
-      const relevantOutput = tx.outputs.find((out) =>
-        isOutgoing ? out.script_public_key_address !== address : out.script_public_key_address === address
-      );
+      // Calculate total output to this address (what we received, including change)
+      const totalOutputToAddress = tx.outputs
+        .filter((out) => out.script_public_key_address === address)
+        .reduce((sum, out) => sum + out.amount, 0);
 
-      // Calculate amount - for outgoing, sum all outputs not going back to self
-      // For incoming, sum outputs coming to us
+      // Determine if this is outgoing: we spent from this address
+      const isOutgoing = totalInputFromAddress > 0;
+
+      // Calculate net amount:
+      // - For outgoing: how much left the address (input - output back to self)
+      // - For incoming: how much came to the address
       let amount = 0;
       if (isOutgoing) {
-        // Sum of all outputs not going back to the sender (excluding change)
-        amount = tx.outputs
-          .filter((out) => out.script_public_key_address !== address)
-          .reduce((sum, out) => sum + out.amount, 0);
+        // Net outgoing = what we spent minus what came back as change
+        amount = totalInputFromAddress - totalOutputToAddress;
       } else {
-        // Sum of all outputs coming to the address
-        amount = tx.outputs
-          .filter((out) => out.script_public_key_address === address)
-          .reduce((sum, out) => sum + out.amount, 0);
+        // Pure incoming = outputs to our address
+        amount = totalOutputToAddress;
       }
 
       // Get the counterparty address
       const counterparty = isOutgoing
-        ? relevantOutput?.script_public_key_address || tx.outputs[0]?.script_public_key_address || ""
+        ? tx.outputs.find((out) => out.script_public_key_address !== address)?.script_public_key_address || ""
         : tx.inputs[0]?.previous_outpoint_address || "";
 
       return {

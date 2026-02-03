@@ -68,12 +68,20 @@ export async function decryptSecret(password: string, payload: EncryptedPayload)
     throw new Error("Unsupported payload version");
   }
 
-  const plain = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv },
-    key,
-    fromBase64(payload.ciphertext)
-  );
-  return new Uint8Array(plain);
+  try {
+    const plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv },
+      key,
+      fromBase64(payload.ciphertext)
+    );
+    return new Uint8Array(plain);
+  } catch (err) {
+    // AES-GCM throws OperationError when password is wrong (auth tag mismatch)
+    if (err instanceof DOMException && err.name === "OperationError") {
+      throw new Error("Incorrect password");
+    }
+    throw err;
+  }
 }
 
 // Check if a payload needs migration to the newer encryption version

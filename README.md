@@ -2,7 +2,9 @@
 
 A security-first, non-custodial browser extension wallet for the Kaspa blockchain.
 
-![NoXu Wallet](src/extension/icons/icon128.png)
+<p align="center">
+  <img src="src/ui/assets/NoxuLogoAnimation.gif" alt="NoXu Wallet" width="200" />
+</p>
 
 ## Overview
 

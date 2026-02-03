@@ -287,6 +287,12 @@ textarea.input:focus {
   padding-inline: 12px;
 }
 
+.secondary-btn.copied {
+  background: rgba(73, 170, 159, 0.3);
+  border-color: var(--accent-secondary);
+  color: var(--accent-secondary);
+}
+
 /* ------------ Nav bar ------------ */
 
 .nav-bar {
@@ -668,6 +674,34 @@ textarea.input:focus {
   max-height: 190px;
   object-fit: contain;
   display: block;
+}
+
+/* ------- Animated Logo ------- */
+
+.animated-logo {
+  width: 180px;
+  height: 180px;
+  cursor: pointer;
+}
+
+.animated-logo-gif {
+  width: 180px;
+  height: 180px;
+  object-fit: contain;
+}
+
+/* Orbit swirl animation - dash offset travels around the path */
+.animated-logo.animating .orbit-ring-front {
+  animation: orbitSwirl 1.2s ease-in-out forwards;
+}
+
+@keyframes orbitSwirl {
+  0% {
+    stroke-dashoffset: 88.2; /* circumference * 0.21 */
+  }
+  100% {
+    stroke-dashoffset: -331.8; /* circumference * 0.21 - circumference */
+  }
 }
 
 /* ------------ Warning banners (scam/security alerts) ------------ */
@@ -1517,25 +1551,39 @@ textarea.input:focus {
 
 /* Refresh Button */
 .refresh-btn {
-  padding: 6px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(110, 199, 187, 0.15);
-  color: var(--accent);
+  padding: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: all 0.2s ease;
 }
 
 .refresh-btn:hover {
-  background: rgba(110, 199, 187, 0.25);
+  background: rgba(110, 199, 187, 0.1);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.refresh-btn:active {
+  transform: scale(0.95);
 }
 
 .refresh-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: default;
+  color: var(--accent);
+  border-color: transparent;
+  background: transparent;
+}
+
+.refresh-btn:disabled:hover {
+  background: transparent;
+  transform: none;
 }
 
 .icon-btn {

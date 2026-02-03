@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import browser from "webextension-polyfill";
 import { useWalletStore, type TokenBalance } from "../store";
+import logoAnimationGif from "../assets/NoxuLogoAnimation.gif";
+import logoStaticPng from "../assets/logo_static.png";
 import type { DerivedAccount } from "../../core/crypto/mnemonic";
 import {
   getStaticTokens,
@@ -98,6 +100,54 @@ class ErrorBoundary extends React.Component<
     return this.props.children;
   }
 }
+
+/* ------------------------- Animated Logo (GIF-based) ------------------------- */
+
+const ANIMATION_DURATION = 3000; // GIF is 3 seconds
+const LOOPS_ON_MOUNT = 1;
+
+const AnimatedLogo: React.FC = () => {
+  const [isAnimating, setIsAnimating] = useState(true);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // Play 2 loops on mount, then stop
+  useEffect(() => {
+    timerRef.current = setTimeout(() => {
+      setIsAnimating(false);
+    }, ANIMATION_DURATION * LOOPS_ON_MOUNT);
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const triggerAnimation = () => {
+    if (isAnimating) return;
+
+    // Force GIF to restart by adding cache-busting query param
+    if (imgRef.current) {
+      imgRef.current.src = logoAnimationGif + "?" + Date.now();
+    }
+    setIsAnimating(true);
+
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setIsAnimating(false);
+    }, ANIMATION_DURATION * LOOPS_ON_MOUNT);
+  };
+
+  return (
+    <img
+      ref={imgRef}
+      src={isAnimating ? logoAnimationGif : logoStaticPng}
+      alt="NoXu Wallet Logo"
+      className="animated-logo-gif"
+      onClick={triggerAnimation}
+      style={{ cursor: isAnimating ? "default" : "pointer" }}
+    />
+  );
+};
 
 /* ------------------------- Inline SVG nav icons ------------------------- */
 
@@ -623,6 +673,7 @@ function InnerApp() {
   const [delayedTxInfo, setDelayedTxInfo] = useState<DelayedTransaction | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null); // For "Saved" feedback
   const [copiedWatchId, setCopiedWatchId] = useState<string | null>(null); // For copy feedback
+  const [addressCopied, setAddressCopied] = useState(false); // For main address copy feedback
   const [selectedWatch, setSelectedWatch] = useState<WatchOnlyAddress | null>(null); // For watch detail view
   const [watchHistory, setWatchHistory] = useState<any[]>([]); // Transaction history for selected watch address
   const [watchHistoryLoading, setWatchHistoryLoading] = useState(false);
@@ -773,6 +824,14 @@ function InnerApp() {
     });
   }, [setAccount]);
 
+  // Lock wallet when popup closes via port disconnection
+  useEffect(() => {
+    // Establish a named port connection to background script
+    // When popup closes, the port disconnects and background locks the wallet
+    const port = browser.runtime.connect({ name: "popup" });
+    return () => port.disconnect();
+  }, []);
+
   useEffect(() => {
     if (account) {
       rpc("GET_BALANCE").then((res) => {
@@ -837,6 +896,7 @@ function InnerApp() {
     setError(undefined);
     const res = await rpc("UNLOCK", { password: unlockPassword });
     if (res?.ok) {
+      setUnlockPassword(""); // Clear password after successful unlock
       setAccount(res.account);
       setOnboardingStep("welcome");
       setMainPage("home");
@@ -850,11 +910,6 @@ function InnerApp() {
     if (!recipient || !amount) return;
     setError(undefined);
 
-    if (selectedToken !== "KAS") {
-      setError("Only KAS transfers are supported at the moment.");
-      return;
-    }
-
     // Show confirmation modal instead of sending directly
     setShowConfirmSend(true);
   };
@@ -864,10 +919,29 @@ function InnerApp() {
     setSendingTx(true);
     setError(undefined);
 
-    const res = await rpc("SEND_TX", {
-      to: recipient,
-      amount: BigInt(Math.round(Number(amount) * 1e8)).toString()
-    });
+    let res;
+
+    if (selectedToken === "KAS") {
+      // Send KAS
+      res = await rpc("SEND_TX", {
+        to: recipient,
+        amount: BigInt(Math.round(Number(amount) * 1e8)).toString()
+      });
+    } else {
+      // Send KRC-20 token
+      // Find token decimals from tokenBalances
+      const tokenBalance = tokenBalances?.find(
+        (tb: TokenBalance) => tb.tick.toUpperCase() === selectedToken
+      );
+      const decimals = tokenBalance?.decimals ?? 8;
+
+      res = await rpc("SEND_KRC20_TX", {
+        tick: selectedToken,
+        to: recipient,
+        amount: amount,
+        decimals: decimals
+      });
+    }
 
     setSendingTx(false);
     setShowConfirmSend(false);
@@ -899,6 +973,14 @@ function InnerApp() {
           setBalance(num);
         }
       });
+      // Also refresh token balances for KRC-20
+      if (selectedToken !== "KAS") {
+        rpc("GET_TOKEN_BALANCES").then((tokenRes) => {
+          if (tokenRes?.ok) {
+            setTokenBalances(tokenRes.balances);
+          }
+        });
+      }
     } else {
       setError(res?.error);
     }
@@ -1204,13 +1286,9 @@ function InnerApp() {
   const ActionCard = (
     <ScreenLayout title="NoXu Wallet">
       <div className="login-shell">
-        {/* Logo frame */}
+        {/* Animated Logo */}
         <div className="login-logo-frame">
-          <img
-            src={browser.runtime.getURL("icons/mylogo1.png")}
-            alt="Logo"
-            className="login-logo-img"
-          />
+          <AnimatedLogo />
         </div>
 
         {/* Glass password panel */}
@@ -1275,10 +1353,14 @@ function InnerApp() {
           <div className="value">{shorten(account?.address)}</div>
         </div>
         <button
-          className="secondary-btn pill"
-          onClick={() => navigator.clipboard.writeText(account?.address || "")}
+          className={`secondary-btn pill ${addressCopied ? "copied" : ""}`}
+          onClick={() => {
+            navigator.clipboard.writeText(account?.address || "");
+            setAddressCopied(true);
+            setTimeout(() => setAddressCopied(false), 1000);
+          }}
         >
-          Copy
+          {addressCopied ? "Copied" : "Copy"}
         </button>
       </div>
       <div className="balance-block">
@@ -1565,9 +1647,8 @@ function InnerApp() {
             setSelectedToken(activeToken.symbol);
             setMainPage("send");
           }}
-          disabled={activeToken.kind === "krc20"}
         >
-          {activeToken.kind === "krc20" ? "Send (Coming Soon)" : "Send"}
+          Send
         </button>
         <button
           className="secondary-btn"
@@ -1728,13 +1809,12 @@ function InnerApp() {
       <button
         className="primary-btn"
         onClick={handleSendClick}
-        disabled={selectedToken !== "KAS"}
       >
-        {selectedToken === "KAS" ? "Review Transaction" : "KRC-20 transfers coming soon"}
+        Review Transaction
       </button>
       {selectedToken !== "KAS" && (
-        <div className="muted small">
-          KRC-20 token transfers are not yet supported. Only KAS can be sent.
+        <div className="muted small" style={{ color: "#f0a000" }}>
+          Note: KRC-20 transfers require Schnorr signature support. This is currently in development.
         </div>
       )}
       {error && <div className="error-text">{error}</div>}
@@ -1763,11 +1843,13 @@ function InnerApp() {
   const ConfirmSendModal = showConfirmSend && (
     <div className="modal-overlay">
       <div className="modal-content">
-        <div className="modal-title">Confirm Transaction</div>
+        <div className="modal-title">
+          Confirm {selectedToken === "KAS" ? "Transaction" : `${selectedToken} Transfer`}
+        </div>
 
         <div className="confirm-section">
           <div className="confirm-label">Sending</div>
-          <div className="confirm-value confirm-amount">{amount} KAS</div>
+          <div className="confirm-value confirm-amount">{amount} {selectedToken}</div>
         </div>
 
         <div className="confirm-section">
@@ -1780,17 +1862,30 @@ function InnerApp() {
           </div>
         </div>
 
-        <div className="confirm-section">
-          <div className="confirm-label">Network Fee</div>
-          <div className="confirm-value">{TX_FEE_KAS} KAS</div>
-        </div>
+        {selectedToken === "KAS" && (
+          <>
+            <div className="confirm-section">
+              <div className="confirm-label">Network Fee</div>
+              <div className="confirm-value">{TX_FEE_KAS} KAS</div>
+            </div>
 
-        <div className="confirm-section">
-          <div className="confirm-label">Total</div>
-          <div className="confirm-value confirm-total">
-            {(Number(amount) + TX_FEE_KAS).toFixed(8)} KAS
+            <div className="confirm-section">
+              <div className="confirm-label">Total</div>
+              <div className="confirm-value confirm-total">
+                {(Number(amount) + TX_FEE_KAS).toFixed(8)} KAS
+              </div>
+            </div>
+          </>
+        )}
+
+        {selectedToken !== "KAS" && (
+          <div className="confirm-section">
+            <div className="confirm-label">Token</div>
+            <div className="confirm-value">
+              <span className="token-badge">KRC-20</span> {selectedToken}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="warning-banner" style={{ marginTop: 12 }}>
           <strong>Warning:</strong> Transactions cannot be reversed.
@@ -1948,6 +2043,7 @@ function InnerApp() {
                 className="secondary-btn danger-btn"
                 onClick={() => {
                   rpc("LOCK");
+                  setPassword(""); // Clear password field for security
                   setAccount(undefined);
                   setMainPage("home");
                   setOnboardingStep("login");
