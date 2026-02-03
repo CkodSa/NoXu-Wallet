@@ -4,7 +4,13 @@ import browser from "webextension-polyfill";
 import { Wallet } from "../../core/wallet";
 import { DEFAULT_NETWORK, getNetworkConfig } from "../../core/networks";
 import { KaspaClient } from "../../core/kaspa/client";
-import { KRC20Client } from "../../core/kaspa/krc20-client";
+import {
+  KRC20Client,
+  KRC20TransferClient,
+  parseTokenAmount,
+  createTransferInscription,
+  serializeInscription,
+} from "../../core/kaspa/krc20-client";
 import type { RpcMessage } from "../messages";
 import {
   DEFAULT_SECURITY_FEATURES,
@@ -36,7 +42,7 @@ const SECURITY_KEY = "kaspa_security_features";
 const ADDRESS_BOOK_KEY = "kaspa_address_book";
 
 // Default auto-lock timeout in minutes (0 = disabled)
-const DEFAULT_AUTO_LOCK_MINUTES = 5;
+const DEFAULT_AUTO_LOCK_MINUTES = 2;
 
 type WalletSettings = {
   autoLockMinutes: number;
@@ -274,6 +280,18 @@ const initPromise = Promise.all([
 ]).then(() => {
   // Start delayed transaction checker after loading
   startDelayedTxChecker();
+});
+
+/**
+ * Lock wallet when popup closes.
+ * The popup establishes a port connection on load; when closed, the port disconnects.
+ */
+browser.runtime.onConnect.addListener((port) => {
+  if (port.name === "popup") {
+    port.onDisconnect.addListener(() => {
+      wallet.lock();
+    });
+  }
 });
 
 /**
@@ -807,6 +825,84 @@ browser.runtime.onMessage.addListener(
               return { ok: true, tokens: serializedTokens };
             } catch (err: any) {
               return { ok: false, error: err?.message || "Failed to fetch token list" };
+            }
+          }
+
+          case "SEND_KRC20_TX": {
+            const { tick, to, amount, decimals } = message.payload;
+
+            // Check if wallet is unlocked
+            if (!wallet.getAccount()) {
+              return { ok: false, error: "Wallet is locked", locked: true };
+            }
+
+            // Validate recipient address
+            if (!isValidKaspaAddress(to)) {
+              return { ok: false, error: "Invalid recipient address" };
+            }
+
+            try {
+              const account = wallet.getAccount()!;
+              const network = wallet.getNetwork();
+
+              // Parse amount to raw token units
+              const amountRaw = parseTokenAmount(amount, decimals);
+
+              if (amountRaw <= 0n) {
+                return { ok: false, error: "Amount must be greater than 0" };
+              }
+
+              // Check token balance
+              const krc20Client = new KRC20Client(network);
+              const balances = await krc20Client.getTokenBalances(account.address);
+              const tokenBalance = balances.find(
+                (b) => b.tick.toUpperCase() === tick.toUpperCase()
+              );
+
+              if (!tokenBalance || tokenBalance.balance < amountRaw) {
+                return {
+                  ok: false,
+                  error: `Insufficient ${tick.toUpperCase()} balance`,
+                };
+              }
+
+              // Create the transfer inscription
+              const inscription = createTransferInscription(tick, amountRaw, to);
+              const inscriptionJson = serializeInscription(inscription);
+
+              // For now, return that the transfer requires full Kaspa transaction signing
+              // Real KRC-20 transfers need:
+              // 1. Commit TX: P2SH output with inscription script
+              // 2. Reveal TX: Spend the P2SH with signature revealing the script
+              // This requires kaspa-wasm or similar for proper Schnorr signatures
+
+              // Log the prepared inscription for debugging
+              console.log("[KRC20] Transfer prepared:", {
+                from: account.address,
+                to,
+                tick: tick.toUpperCase(),
+                amount: amountRaw.toString(),
+                inscription: inscriptionJson,
+              });
+
+              return {
+                ok: false,
+                error:
+                  "KRC-20 transfers are not yet fully supported. Full Kaspa transaction signing (Schnorr signatures) is required. This feature is coming soon.",
+                prepared: {
+                  inscription: inscriptionJson,
+                  from: account.address,
+                  to,
+                  tick: tick.toUpperCase(),
+                  amount: amountRaw.toString(),
+                },
+              };
+            } catch (err: any) {
+              console.error("[KRC20] Transfer error:", err);
+              return {
+                ok: false,
+                error: err?.message || "Failed to prepare KRC-20 transfer",
+              };
             }
           }
 
