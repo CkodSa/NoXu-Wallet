@@ -1,8 +1,12 @@
 import { type NetworkConfig } from "../networks";
-import { sha256 } from "@noble/hashes/sha256";
-import { base64 } from "@scure/base";
 import type { DerivedAccount } from "../crypto/mnemonic";
 import { z } from "zod";
+import {
+  createSignedTransaction,
+  selectUtxos,
+  calculateFee,
+  type TransactionBuilderOptions,
+} from "./transaction";
 
 export type KaspaUTXO = {
   transactionId: string;
@@ -215,55 +219,72 @@ export class KaspaClient {
     });
   }
 
-  // Basic single-output builder: selects biggest UTXOs until amount+fee is covered.
-  // Note: Transaction signing and broadcasting requires proper Kaspa transaction format.
-  // The REST API at api.kaspa.org does not support transaction submission.
-  // This is a placeholder - real implementation requires kaspa-wasm or similar library.
-  async buildSignBroadcast(account: DerivedAccount, to: string, amountSompi: bigint): Promise<string> {
+  /**
+   * Build, sign, and broadcast a Kaspa transaction with proper Schnorr signatures.
+   *
+   * @param account - The derived account with private key
+   * @param to - Destination Kaspa address
+   * @param amountSompi - Amount to send in sompi (1 KAS = 1e8 sompi)
+   * @param options - Optional transaction builder options (fee settings)
+   * @returns Transaction ID of the broadcasted transaction
+   */
+  async buildSignBroadcast(
+    account: DerivedAccount,
+    to: string,
+    amountSompi: bigint,
+    options?: TransactionBuilderOptions
+  ): Promise<string> {
+    // Fetch UTXOs for the account
     const utxos = await this.getUTXOs(account.address);
-    if (!utxos.length) throw new Error("No funds");
-    const fee = BigInt(1000); // Conservative flat fee; replace with dynamic calculator later.
-    const needed = amountSompi + fee;
-    let total = 0n;
-    const inputs: KaspaUTXO[] = [];
-    for (const utxo of utxos) {
-      inputs.push(utxo);
-      total += utxo.amountSompi;
-      if (total >= needed) break;
+    if (!utxos.length) {
+      throw new Error("No funds available");
     }
-    if (total < needed) throw new Error("Insufficient funds");
 
-    const change = total - needed;
-    const tx = {
-      version: 0,
-      inputs: inputs.map((u) => ({
-        previousOutpoint: { transactionId: u.transactionId, index: u.index },
-        signatureScript: "", // Placeholder; signing happens below.
-        sequence: 0xffffffff,
-      })),
-      outputs: [
-        { amount: amountSompi.toString(), scriptPublicKey: to },
-        ...(change > 0n ? [{ amount: change.toString(), scriptPublicKey: account.address }] : []),
-      ],
-      lockTime: 0,
-    };
-
-    const rawForSigning = sha256(new TextEncoder().encode(JSON.stringify(tx)));
-    // Phantom-style: signing stays in background; UI never sees privateKey.
-    const signature = await crypto.subtle.sign(
-      { name: "HMAC", hash: "SHA-256" },
-      await crypto.subtle.importKey("raw", account.privateKey, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]),
-      rawForSigning
+    // Build and sign the transaction with proper Schnorr signatures
+    const { txId, broadcastData } = createSignedTransaction(
+      utxos,
+      to,
+      amountSompi,
+      account.address, // Change goes back to sender
+      account.privateKey,
+      options
     );
-    const signedTx = { ...tx, signature: base64.encode(new Uint8Array(signature)) };
 
-    // POST to /transactions endpoint (if available)
-    // Note: The public api.kaspa.org may not support transaction submission
+    // Broadcast the signed transaction
     const broadcastRes = await this.restPost(
       "/transactions",
-      signedTx,
+      broadcastData,
       BroadcastResponseSchema
     );
-    return broadcastRes.transactionId;
+
+    // Return the transaction ID (use server response if available, otherwise computed)
+    return broadcastRes.transactionId || txId;
+  }
+
+  /**
+   * Estimate the fee for a transaction without signing it.
+   *
+   * @param address - The sender's address
+   * @param amountSompi - Amount to send in sompi
+   * @param options - Optional fee settings
+   * @returns Estimated fee in sompi
+   */
+  async estimateFee(
+    address: string,
+    amountSompi: bigint,
+    options?: TransactionBuilderOptions
+  ): Promise<bigint> {
+    const utxos = await this.getUTXOs(address);
+    if (!utxos.length) {
+      throw new Error("No funds available");
+    }
+
+    try {
+      const { fee } = selectUtxos(utxos, amountSompi, options);
+      return fee;
+    } catch {
+      // If we can't select enough UTXOs, estimate based on all UTXOs
+      return calculateFee(utxos.length, 2, options);
+    }
   }
 }
