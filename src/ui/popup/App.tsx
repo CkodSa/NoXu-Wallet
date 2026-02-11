@@ -3260,11 +3260,6 @@ function InnerApp() {
       <div className="content" ref={contentRef}>
         {mainPage === "home" && (
           <ScreenLayout title="Home">
-            {isDuressMode && (
-              <div className="duress-active-banner">
-                Duress Mode Active - Decoy wallet displayed
-              </div>
-            )}
             {HomeCard}
             {/* Watch-Only Preview */}
             {securityFeatures?.watchOnlyAddresses &&

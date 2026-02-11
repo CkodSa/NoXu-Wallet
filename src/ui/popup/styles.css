@@ -1252,18 +1252,6 @@ textarea.input:focus {
   cursor: pointer;
 }
 
-/* Duress Mode Warning */
-.duress-active-banner {
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: rgba(249, 115, 115, 0.15);
-  border: 1px solid rgba(249, 115, 115, 0.4);
-  color: #fca5a5;
-  font-size: 11px;
-  text-align: center;
-  margin-bottom: 8px;
-}
-
 /* Info Badge */
 .feature-badge {
   display: inline-flex;
