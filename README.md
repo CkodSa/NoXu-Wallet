@@ -272,6 +272,14 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 MIT License - see [LICENSE](LICENSE) for details.
 
+## Support the Project
+
+If you find NoXu Wallet useful, consider supporting continued development:
+
+**Kaspa:** `kaspa:qpwan3a8mdg747vselffjzl4h5ayu0mxx6v2e9l63yxr6tt5asyru34jh3zs7`
+
+All donations go toward testing, infrastructure, and future features. Thank you!
+
 ## Links
 
 - **GitHub:** [github.com/CkodSa/NoXu-Wallet](https://github.com/CkodSa/NoXu-Wallet)
