@@ -1,7 +1,5 @@
 # DoraHacks BUIDL Submission - NoXu Wallet
 
-This document contains all the content you need to copy/paste into the DoraHacks BUIDL submission form.
-
 ---
 
 ## PROJECT NAME
@@ -12,245 +10,204 @@ NoXu Wallet
 
 ## ONE-LINER / TAGLINE
 
-A security-first, non-custodial browser extension wallet for the Kaspa blockchain - available on Chrome and Firefox.
+A modern, security-first browser extension wallet for Kaspa with full KRC-20 token transfers, multi-currency fiat display, and real-time market data.
 
 ---
 
 ## SHORT DESCRIPTION (for submission form, ~150-200 words)
 
-NoXu Wallet is a non-custodial browser extension wallet built specifically for the Kaspa blockchain. It enables users to securely manage their KAS holdings with industry-leading security practices including Argon2id key derivation, AES-256-GCM encryption, and automatic memory wiping of sensitive data.
+NoXu Wallet is a non-custodial browser extension wallet purpose-built for the Kaspa blockchain. It gives users full control over their KAS and KRC-20 tokens with real transaction signing powered by Schnorr signatures (secp256k1).
 
-Built with a security-first architecture, NoXu Wallet ensures your private keys never leave your device. The wallet supports BIP39 mnemonic generation (12/24 words), BIP44 key derivation with Kaspa's SLIP-44 standard (coin type 972), and features automatic wallet locking, dApp connection management, and custom RPC configuration for both mainnet and testnet.
+Security is baked in from the ground up: Argon2id key derivation (64MB memory-hard), AES-256-GCM encryption, automatic memory wiping, duress mode (decoy wallet under coercion), and time-delayed transactions for large transfers. Your keys never leave your device.
 
-Now available on both Chrome and Firefox, NoXu provides a clean React-based interface while maintaining a modular TypeScript codebase that separates core cryptographic logic from the extension layer. This architecture enables future portability and extensibility for KRC20 tokens, hardware wallet support, and L2 integrations.
+Beyond security, NoXu delivers a polished user experience: multi-currency fiat display (8 currencies via CoinGecko), a redesigned send page with token selection and live fiat conversion, popular and trending KRC-20 token discovery, address book with contact labels, QR code receiving, and full transaction history with CSV export.
+
+Available on Chrome and Firefox with a modular TypeScript architecture that cleanly separates core crypto logic from the UI and extension layers.
 
 Your keys, your crypto. Always.
 
 ---
 
-## PROBLEM STATEMENT / MOTIVATION
+## WHAT WE BUILT
 
-### The Problem
+### ✨ Features
 
-Kaspa is one of the fastest and most innovative blockchains, utilizing a BlockDAG architecture that enables unprecedented throughput. However, the ecosystem needs diverse, security-focused wallet options. Users face several challenges:
+#### Core Wallet
+- 🔐 **Full Kaspa transaction signing** — Schnorr signatures via `@noble/curves/secp256k1`
+- 💰 **Send & receive KAS** — real-time balance updates, confirmation modals, address verification
+- 🎨 **Full KRC-20 token transfers** — commit + reveal inscription pattern with real `KRC20TransferClient`
+- 📊 **Complete transaction history** — with explorer links, contact labels, and CSV export
+- 👁️ **Watch-only mode** — monitor any Kaspa address without importing keys
+- 📖 **Address book** — save contacts with labels, use them directly when sending
+- 📱 **QR code support** — byte-mode encoding that correctly preserves lowercase Kaspa addresses
 
-**1. Security Gaps**
-Many existing wallet solutions compromise on security or require trusting third parties with sensitive key material. Users deserve true self-custody without sacrificing protection against modern attack vectors.
+#### Multi-Currency & Market Data
+- 💱 **8 fiat currencies** — USD, EUR, GBP, JPY, CAD, AUD, CHF, KRW
+- 📈 **Fiat as primary balance** — KAS amount shown secondary, currency badge picker on home card
+- 🔥 **Popular tokens** — top KRC-20 tokens from CoinGecko's Kaspa ecosystem category
+- 📊 **Trending tokens** — sorted by 24h price gainers with color-coded change indicators
+- 💾 **Per-currency caching** — smart cache keys prevent stale price data when switching currencies
 
-**2. Limited Browser Integration**
-Users need seamless access to emerging Kaspa dApps without managing separate applications or complex setups.
+#### Security & Advanced Features
+- 🛡️ **Argon2id + AES-256-GCM** — military-grade encryption for stored wallet data
+- 🧹 **Automatic memory wiping** — sensitive data cleared immediately after use
+- 🔒 **Auto-lock** — configurable locking on idle or system lock (default: 5 min)
+- 🎭 **Duress mode** — panic PIN opens a decoy wallet with fake balance under coercion
+- ⏰ **Time-delayed transactions** — large transfers queued with configurable delay + cancellation window
+- 🌐 **dApp approval system** — granular control over which sites can connect
+- 🛡️ **Phishing protection** — extension ID verification and console security warnings
 
-**3. Outdated Security Practices**
-Few wallets implement modern cryptographic best practices like memory-safe key handling, Argon2id key derivation, or protection against clipboard hijacking and phishing attacks.
-
-**4. Ecosystem Growth Barriers**
-As Kaspa prepares for KRC20 tokens and L2 solutions, the ecosystem needs wallet infrastructure that can grow alongside it.
-
-**5. Browser Compatibility**
-Many crypto wallets only support Chrome, leaving Firefox users without options.
-
-### Why This Matters
-
-As Kaspa adoption grows, secure and user-friendly wallet infrastructure becomes critical. A single security breach can devastate user trust and harm the entire ecosystem. NoXu Wallet addresses this by implementing bank-grade encryption and defensive security measures typically found only in enterprise applications.
-
----
-
-## SOLUTION DESCRIPTION
-
-### What We Built
-
-NoXu Wallet is a cross-browser extension (Chrome + Firefox) that provides complete Kaspa wallet functionality with an uncompromising focus on security.
-
-### Core Features
-
-**Wallet Management**
-- Create new wallets with 12 or 24-word BIP39 seed phrases
-- Import existing wallets from seed phrases
-- Secure password protection with visual strength indicator
-
-**Transactions**
-- Send KAS with amount validation and confirmation modals
-- Receive with address display, copy functionality, and QR codes
-- View transaction history with status tracking
-- Support for both mainnet and testnet
-
-**Security Architecture**
-- **Argon2id Key Derivation:** Memory-hard KDF (64MB, 3 iterations) prevents brute-force attacks
-- **AES-256-GCM Encryption:** Authenticated encryption for stored wallet data
-- **Memory Wiping:** Sensitive data cleared from memory immediately after use
-- **Auto-Lock:** Configurable automatic locking on idle or system lock
-- **dApp Approval:** Granular control over which websites can connect
-
-**User Experience**
-- Clean, intuitive interface (380x620px popup)
-- Network switching with one click
-- Custom RPC URL support for advanced users
-- Address verification UI to prevent manipulation attacks
-
-**Cross-Browser Support**
-- Chrome Extension (Manifest V3 with service worker)
-- Firefox Add-on (Manifest V3 with background scripts)
-- Single codebase using webextension-polyfill
-
-### Technical Implementation
-
-- **Chrome/Firefox MV3:** Modern extension architecture with service workers
-- **React 18 + TypeScript:** Type-safe, maintainable UI layer
-- **Zustand:** Lightweight state management
-- **Zod:** Runtime API response validation
-- **webextension-polyfill:** Cross-browser compatibility
-- **Modular Architecture:** Core logic is framework-agnostic for future portability
+#### Redesigned Send Page (v1.0.1)
+- Token selector card showing icon, symbol, balance, and fiat equivalent
+- Expandable token sheet listing all owned tokens (KAS + KRC-20)
+- Large centered amount input with live fiat conversion
+- MAX button that auto-fills maximum sendable balance (reserves dust for network fees)
+- Smart review button — disabled until all fields are valid
 
 ---
 
-## TECHNICAL ARCHITECTURE
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         NoXu Wallet                             │
-├─────────────────────────────────────────────────────────────────┤
-│  UI Layer (React + Zustand)                                     │
-│  ├── Popup Interface (380x620px)                                │
-│  ├── Options/Settings Page                                      │
-│  └── State Management (Zustand Store)                           │
-├─────────────────────────────────────────────────────────────────┤
-│  Extension Layer (Chrome MV3 / Firefox MV3)                     │
-│  ├── Background Service Worker (State & RPC Handler)            │
-│  ├── Content Script (dApp Bridge)                               │
-│  └── Message Passing (Type-safe RPC)                            │
-├─────────────────────────────────────────────────────────────────┤
-│  Core Layer (Framework-Agnostic)                                │
-│  ├── Wallet Class (State Management)                            │
-│  ├── Crypto Module (Argon2id, AES-256-GCM, Memory Wiping)       │
-│  ├── Mnemonic Module (BIP39/BIP44, SLIP-44 #972)                │
-│  └── Kaspa Client (REST API, Zod Validation)                    │
-├─────────────────────────────────────────────────────────────────┤
-│  External                                                       │
-│  └── Kaspa Network (api.kaspa.org / Custom RPC)                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Tech Stack
+## 🛠️ Tech Stack
 
 | Category | Technology |
 |----------|------------|
 | Frontend | React 18.2, TypeScript 5.4 |
 | Build | Vite 7.2 |
 | State | Zustand 4.5 |
-| Crypto | @scure/bip32, @scure/bip39, @noble/hashes |
+| Crypto | `@noble/curves` (Schnorr), `@scure/bip39`, `@scure/bip32`, `@noble/hashes` |
+| KRC-20 | Kasplex indexer API, commit/reveal inscription pattern |
+| Prices | CoinGecko API (Kaspa ecosystem category, multi-currency) |
 | Validation | Zod 3.22 |
 | Cross-Browser | webextension-polyfill |
 | Platform | Chrome Extension (MV3), Firefox Add-on (MV3) |
 
+---
+
+## TECHNICAL ARCHITECTURE
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                          NoXu Wallet v1.0.1                       │
+├──────────────────────────────────────────────────────────────────┤
+│  UI Layer (React 18 + Zustand)                                    │
+│  ├── Home Card (fiat balance, currency picker, price chart)       │
+│  ├── Send Page (token selector, amount input, fiat conversion)    │
+│  ├── Receive Page (QR code, address copy)                         │
+│  ├── Popular & Trending Tokens (dual-tab, CoinGecko data)        │
+│  ├── Security Settings (duress, time-delay, auto-lock)            │
+│  └── Address Book, History, CSV Export                            │
+├──────────────────────────────────────────────────────────────────┤
+│  Extension Layer (Chrome MV3 / Firefox MV3)                       │
+│  ├── Background Service Worker (RPC handler, settings, cache)     │
+│  ├── Content Script (dApp bridge)                                 │
+│  └── Message Passing (type-safe RPC with 30+ message types)       │
+├──────────────────────────────────────────────────────────────────┤
+│  Core Layer (Framework-Agnostic)                                  │
+│  ├── Wallet (state, account, UTXOs)                               │
+│  ├── KRC20TransferClient (commit + reveal Schnorr-signed tx)      │
+│  ├── Price Client (CoinGecko, multi-currency, caching)            │
+│  ├── Crypto (Argon2id KDF, AES-256-GCM, memory wiping)            │
+│  └── Mnemonic (BIP39/BIP44, SLIP-44 coin type 972)                │
+├──────────────────────────────────────────────────────────────────┤
+│  External APIs                                                    │
+│  ├── Kaspa Network (api.kaspa.org / Custom RPC)                   │
+│  ├── Kasplex Indexer (KRC-20 balances & token info)               │
+│  └── CoinGecko (prices, ecosystem data, trending)                 │
+└──────────────────────────────────────────────────────────────────┘
+```
+
 ### Key Design Decisions
 
-1. **Separation of Concerns:** Core cryptographic logic is completely isolated from UI and extension code, enabling future mobile or desktop ports.
+1. **Real Schnorr Signing** — KRC-20 transfers use `@noble/curves/secp256k1` Schnorr signatures with Blake2b Kaspa-specific personalization. Full commit + reveal pattern handled by `KRC20TransferClient.executeTransfer()`.
 
-2. **No External Dependencies for Crypto:** We use audited, minimal libraries (@scure, @noble) rather than large frameworks, reducing attack surface.
+2. **No External Crypto Dependencies** — Only audited, minimal libraries (`@scure`, `@noble`) — no large frameworks, minimal attack surface.
 
-3. **Memory Safety:** All sensitive data (seeds, private keys, passwords) is explicitly wiped from memory after use, protecting against memory dump attacks.
+3. **Memory Safety** — All sensitive data (seeds, private keys, passwords) explicitly wiped from memory after use.
 
-4. **Type Safety:** Full TypeScript with Zod runtime validation ensures API responses match expected schemas, preventing subtle bugs.
+4. **Smart Price Caching** — Currency string embedded in cache keys prevents stale data when switching between fiat currencies. Single CoinGecko endpoint serves both popular and trending token data.
 
-5. **Cross-Browser Compatibility:** Using webextension-polyfill allows a single codebase to target both Chrome and Firefox.
+5. **QR Code Byte Mode** — Custom QR generator uses byte-mode encoding (not alphanumeric) to preserve lowercase Kaspa addresses exactly as-is.
 
----
-
-## FUTURE ROADMAP
-
-### Phase 1 - Foundation (Completed ✅)
-- Core wallet functionality (create, import, send, receive)
-- Security infrastructure (encryption, memory wiping, auto-lock)
-- Mainnet and testnet support
-- dApp connection framework
-- Cross-browser support (Chrome + Firefox)
-
-### Phase 2 - Enhanced Transactions
-- Full Kaspa transaction signing (Schnorr signatures)
-- UTXO optimization for efficient spending
-- Transaction fee estimation improvements
-- Batch transaction support
-
-### Phase 3 - Token Ecosystem
-- KRC20 token support (send, receive, display)
-- Remote token list integration
-- Token metadata and price feeds
-- NFT display support
-
-### Phase 4 - dApp Integration
-- Full dApp provider API (wallet_connect, sign_transaction)
-- Transaction simulation/preview
-- Approval popup UI for dApp requests
-- WalletConnect protocol support
-
-### Phase 5 - Advanced Features
-- Multi-account support
-- Hardware wallet integration (Ledger)
-- Mobile companion app
-- Edge/Brave explicit support
-
-### Phase 6 - Ecosystem Growth
-- Third-party security audit
-- Open-source SDK for developers
-- L2 solution integration
-- Localization (multi-language support)
+6. **Cross-Browser Single Codebase** — `webextension-polyfill` targets Chrome and Firefox from one TypeScript source.
 
 ---
 
-## TEAM INFORMATION
+## 🚀 Status & Testing
 
-**[UPDATE THIS SECTION WITH YOUR ACTUAL INFORMATION]**
+### What's Working (Tested ✅)
 
-### Team Members
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Wallet create (12/24 word) | ✅ Tested | BIP39 mnemonic generation |
+| Wallet import from seed | ✅ Tested | Restores accounts correctly |
+| Send KAS transactions | ✅ Tested | With confirmation modal + address verification |
+| Receive (QR + copy) | ✅ Tested | Byte-mode QR preserves lowercase addresses |
+| KRC-20 token balances | ✅ Tested | Via Kasplex indexer |
+| KRC-20 token transfers | ✅ Tested | Schnorr commit + reveal flow |
+| Transaction history | ✅ Tested | With explorer links + contact labels |
+| CSV export | ✅ Tested | Downloads full history |
+| Address book | ✅ Tested | Save, edit, delete contacts |
+| Multi-currency fiat (8) | ✅ Tested | USD, EUR, GBP, JPY, CAD, AUD, CHF, KRW |
+| Currency persistence | ✅ Tested | Saved across sessions |
+| Popular tokens | ✅ Tested | CoinGecko Kaspa ecosystem |
+| Trending tokens (gainers) | ✅ Tested | Sorted by 24h change |
+| Duress mode (decoy wallet) | ✅ Tested | Panic PIN shows fake balance |
+| Time-delayed transactions | ✅ Tested | Configurable delay + cancel window |
+| Watch-only addresses | ✅ Tested | Monitor without keys |
+| Auto-lock | ✅ Tested | Idle + system lock detection |
+| Network switching | ✅ Tested | Mainnet / Testnet + custom RPC |
+| Chrome MV3 | ✅ Tested | Service worker architecture |
+| Firefox MV3 | ✅ Tested | Background scripts architecture |
+| Production build | ✅ Passing | `npm run build` succeeds cleanly |
 
-**[Your Name]** - Lead Developer / Founder
-- Role: Full-stack development, security architecture, project lead
-- Background: [Your background]
-- GitHub: [Your GitHub URL]
-- LinkedIn/Twitter: [Your social links]
+### What's Changed in v1.0.1
 
-### Why We're Building This
+- **Multi-currency fiat support** — 8 currencies with in-card picker and animated dropdown
+- **KRC-20 token transfers** — real Schnorr-signed commit + reveal (was previously a stub)
+- **Redesigned Send page** — token selector card, large amount input, MAX button, fiat conversion
+- **Popular & Trending tokens** — dual-tab section on home page with CoinGecko data
+- **QR code fix** — switched from alphanumeric (uppercase) to byte mode (preserves lowercase)
+- **Removed Schnorr warnings** — all "not yet supported" texts removed since signing is complete
+- **Cleaned background worker** — removed dead imports, replaced stubs with real implementations
 
-We are passionate about Kaspa's unique BlockDAG architecture and believe the ecosystem needs robust, security-focused wallet infrastructure to support mainstream adoption. With experience in [your relevant experience], we're committed to building tools that prioritize user safety without sacrificing usability.
+---
+
+## 🗺️ Roadmap
+
+### Completed ✅
+- ✅ Core wallet (create, import, send, receive)
+- ✅ Full Kaspa transaction signing (Schnorr signatures)
+- ✅ KRC-20 token support (balances + transfers)
+- ✅ Multi-currency fiat display (8 currencies)
+- ✅ Popular & trending token discovery
+- ✅ Security infrastructure (Argon2id, AES-256-GCM, memory wiping)
+- ✅ Duress mode & time-delayed transactions
+- ✅ Watch-only address tracking
+- ✅ Address book, QR codes, CSV export
+- ✅ Cross-browser (Chrome + Firefox)
+- ✅ Mainnet and testnet support
+
+### Coming Soon
+- 🧪 Live mainnet stress testing & bug fixes
+- 🌐 Chrome Web Store publication
+- 🔗 dApp connection support (WalletConnect)
+- 📱 Mobile-responsive popup UI
+
+### Future Plans
+- 🔄 Built-in token swap integration
+- 🌍 Multi-language support
+- 🔐 Hardware wallet support (Ledger)
+- 📊 Portfolio tracking & advanced price charts
+- 🎨 Enhanced token management & discovery
+- 🤝 NFT support (when available on Kaspa)
 
 ---
 
 ## LINKS
 
-**[UPDATE THESE WITH YOUR ACTUAL LINKS]**
-
 - **GitHub Repository:** https://github.com/CkodSa/NoXu-Wallet
-- **Demo Video:** [YouTube/Google Drive link - YOU NEED TO CREATE]
-- **Chrome Web Store:** [Link if published]
-- **Firefox Add-ons:** [Link if published]
-- **Website:** [If you have one]
-- **Twitter:** [Your Twitter]
-- **Discord:** [If applicable]
-
----
-
-## HACKATHON TRACK
-
-Suggested tracks for submission (check the actual Kaspa hackathon page for available tracks):
-
-- **Infrastructure / Tooling** - Wallet is core infrastructure
-- **DeFi / Wallets** - Direct wallet submission
-- **Security** - Strong security focus
-- **User Experience** - Clean, intuitive interface
-
----
-
-## SCREENSHOTS
-
-**[YOU NEED TO CAPTURE THESE]**
-
-Recommended screenshots to include:
-1. Wallet creation / onboarding flow
-2. Main dashboard showing balance
-3. Send transaction screen
-4. Receive screen with address/QR
-5. Transaction history / Activity
-6. Settings page
+- **Demo Video:** [YouTube/Google Drive link]
+- **Chrome Web Store:** [Coming soon]
+- **Firefox Add-ons:** [Coming soon]
 
 ---
 
@@ -275,22 +232,27 @@ npm run build:all
 # Creates dist-chrome/ and dist-firefox/
 ```
 
----
+### Load in Chrome
+1. Open `chrome://extensions`
+2. Enable "Developer mode" (toggle top right)
+3. Click "Load unpacked"
+4. Select the `dist/` folder
 
-## SUBMISSION CHECKLIST
-
-Before submitting, ensure you have:
-
-- [ ] DoraHacks account created
-- [ ] GitHub repository is PUBLIC
-- [ ] README.md is comprehensive (DONE - check the updated README)
-- [ ] Demo video recorded and uploaded (YOU NEED TO DO)
-- [ ] Screenshots captured (YOU NEED TO DO)
-- [ ] Team members added as contributors on DoraHacks
-- [ ] All form fields filled out
-- [ ] Project builds successfully for Chrome (`npm run build:chrome`)
-- [ ] Project builds successfully for Firefox (`npm run build:firefox`)
+### Load in Firefox
+1. Open `about:debugging#/runtime/this-firefox`
+2. Click "Load Temporary Add-on..."
+3. Select `manifest.json` inside `dist/`
 
 ---
 
-*This document was prepared for the Kaspa Hackathon on DoraHacks (January 16 - February 15, 2026)*
+## ☕ Support Development
+
+If you find NoXu Wallet useful, consider supporting continued development:
+
+**Kaspa:** `kaspa:qpwan3a8mdg747vselffjzl4h5ayu0mxx6v2e9l63yxr6tt5asyru34jh3zs7`
+
+All donations go toward testing, infrastructure, and future features. Thank you! 🙏
+
+---
+
+*Submitted to the Kaspa Hackathon on DoraHacks (January 16 - February 15, 2026)*
