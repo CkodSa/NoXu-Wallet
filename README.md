@@ -12,11 +12,53 @@ NoXu Wallet enables users to securely manage their KAS holdings with industry-le
 
 **Your keys, your crypto. Always.**
 
+## Changelog
+
+### v1.0.1 — Multi-Currency, KRC-20 Transfers & UI Overhaul
+
+**Multi-Currency Fiat Support**
+- Added support for 8 fiat currencies: USD, EUR, GBP, JPY, CAD, AUD, CHF, KRW
+- Fiat balance is now the primary display on the home card (KAS amount shown secondary)
+- In-card currency picker with animated dropdown — tap the currency badge (e.g. `EUR ▾`) to switch
+- All prices (KAS, KRC-20 tokens) update to reflect the selected currency via CoinGecko API
+- Currency preference persists across sessions
+
+**KRC-20 Token Transfers (Schnorr Signatures)**
+- Full KRC-20 token sending is now live — commit + reveal transaction flow using Schnorr signatures
+- Uses `@noble/curves/secp256k1` for cryptographic signing
+- Removed all "Schnorr not yet supported" warning texts from the UI
+
+**Redesigned Send Page**
+- Token selector: tappable card showing selected token icon, symbol, balance, and fiat value
+- Expandable token sheet listing all owned tokens (KAS + KRC-20) with balances
+- Large centered amount input with live fiat conversion (for KAS)
+- MAX button that auto-fills the maximum sendable balance (reserves dust for fees)
+- Disabled review button when fields are empty
+
+**Popular & Trending Tokens**
+- New dual-tab section on home page: Popular and Trending
+- Popular tokens sourced from CoinGecko's Kaspa ecosystem category
+- Trending tokens sorted by 24h price gainers — reuses cached data, no extra API calls
+- Each token shows price and 24h change with color-coded indicators
+
+**QR Code Fix**
+- Fixed critical bug: QR code was encoding addresses in uppercase (alphanumeric mode)
+- Kaspa addresses are lowercase and case-sensitive — the old QR codes produced invalid addresses
+- Switched to byte mode encoding which preserves the exact address
+
+**Other Improvements**
+- Per-currency caching for price data (currency string in cache keys)
+- Cleaned up unused imports and dead code in background service worker
+- Replaced stub KRC-20 send handler with real `KRC20TransferClient.executeTransfer()`
+
 ## Features
 
 ### Core Wallet
 - **Create & Import Wallets** - Generate new wallets with 12 or 24-word BIP39 mnemonics or import existing seed phrases
 - **Send & Receive KAS** - Full transaction support with confirmation modals and scannable QR codes
+- **Send KRC-20 Tokens** - Transfer KRC-20 tokens using Schnorr signatures (commit + reveal flow)
+- **Multi-Currency Fiat** - View balances in 8 currencies (USD, EUR, GBP, JPY, CAD, AUD, CHF, KRW)
+- **Popular & Trending Tokens** - Browse top KRC-20 tokens by market cap and 24h gainers
 - **Balance & History** - Real-time balance updates, transaction history with manual refresh
 - **Address Book** - Save frequently used addresses with labels for easy sending
 - **Contact Labels in History** - Transaction history shows contact names instead of raw addresses
@@ -214,8 +256,10 @@ NoXu Wallet is built with security as the primary concern. See [SECURITY_AUDIT.m
 - [x] QR code for receiving payments
 - [x] Transaction history CSV export
 - [x] Manual refresh for balance and history
-- [ ] Full Kaspa transaction signing (Schnorr signatures)
-- [ ] KRC-20 token transfers
+- [x] Full Kaspa transaction signing (Schnorr signatures)
+- [x] KRC-20 token transfers
+- [x] Multi-currency fiat support (USD, EUR, GBP, JPY, CAD, AUD, CHF, KRW)
+- [x] Popular & trending KRC-20 tokens dashboard
 - [ ] Hardware wallet integration (Ledger)
 - [ ] Mobile companion app
 - [ ] Third-party security audit

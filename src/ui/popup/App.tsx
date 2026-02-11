@@ -36,7 +36,41 @@ type MainPage =
   | "watchdetail";
 
 async function rpc(type: string, payload?: any) {
-  return browser.runtime.sendMessage({ type, payload });
+  try {
+    return await browser.runtime.sendMessage({ type, payload });
+  } catch (err) {
+    console.error(`[rpc] ${type} failed:`, err);
+    return { ok: false, error: String(err) };
+  }
+}
+
+/**
+ * Robust clipboard copy that works on Windows + Mac.
+ * Uses navigator.clipboard with execCommand fallback.
+ */
+async function copyToClipboard(text: string): Promise<boolean> {
+  // Try modern API first
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Fallback: hidden textarea + execCommand
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    ta.style.top = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
 }
 
 const STORAGE_SEED_SEEN_KEY = "kaspa_hasSeenSeedBackupScreen";
@@ -474,7 +508,7 @@ const BookIcon: React.FC = () => (
 );
 
 const RefreshIcon: React.FC = () => (
-  <svg viewBox="0 0 24 24" aria-hidden="true" width={14} height={14}>
+  <svg viewBox="0 0 24 24" aria-hidden="true" width={16} height={16}>
     <path
       d="M23 4v6h-6"
       fill="none"
@@ -496,6 +530,19 @@ const RefreshIcon: React.FC = () => (
       fill="none"
       stroke="currentColor"
       strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const CheckIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" width={16} height={16}>
+    <path
+      d="M20 6L9 17l-5-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
       strokeLinecap="round"
       strokeLinejoin="round"
     />
@@ -631,7 +678,13 @@ function InnerApp() {
   const [mainPage, setMainPage] = useState<MainPage>("home");
   const [hasWallet, setHasWallet] = useState(false);
   const [activeToken, setActiveToken] = useState<TokenMeta | null>(null);
-  const [chartRange, setChartRange] = useState<"D" | "W" | "M">("D");
+  const [chartRange, setChartRange] = useState<"D" | "W" | "M">("W");
+
+  // KAS price state
+  const [kasPrice, setKasPrice] = useState<number | null>(null);
+  const [kasPriceChange, setKasPriceChange] = useState<number>(0);
+  const [kasPriceHistory, setKasPriceHistory] = useState<number[]>([]);
+  const [priceLoading, setPriceLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [password, setPassword] = useState("");
   const [unlockPassword, setUnlockPassword] = useState("");
@@ -653,6 +706,7 @@ function InnerApp() {
   const [network, setNetwork] = useState<KaspaNetwork>("mainnet");
   const [showConfirmSend, setShowConfirmSend] = useState(false);
   const [sendingTx, setSendingTx] = useState(false);
+  const [showTokenSheet, setShowTokenSheet] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Security Features State
@@ -688,11 +742,29 @@ function InnerApp() {
 
   // Refresh State
   const [refreshingBalance, setRefreshingBalance] = useState(false);
+  const [refreshedBalance, setRefreshedBalance] = useState(false);
   const [refreshingHistory, setRefreshingHistory] = useState(false);
 
   // Token Info State
   const [tokenInfo, setTokenInfo] = useState<any>(null);
   const [tokenInfoLoading, setTokenInfoLoading] = useState(false);
+
+  // KRC-20 Token Price State (from CoinGecko / Kas.fyi)
+  const [tokenPrice, setTokenPrice] = useState<{ price: number; change_24h?: number; volume?: number } | null>(null);
+  const [tokenPriceLoading, setTokenPriceLoading] = useState(false);
+
+  // Kas.fyi API key
+  const [kasFyiApiKey, setKasFyiApiKey] = useState("");
+  const [savingApiKey, setSavingApiKey] = useState(false);
+
+  // Currency state
+  const [currency, setCurrency] = useState("usd");
+  const [showCurrencyDropdown, setShowCurrencyDropdown] = useState(false);
+
+  // Trending/popular tokens state
+  const [trendingTokens, setTrendingTokens] = useState<any[]>([]);
+  const [trendingGainers, setTrendingGainers] = useState<any[]>([]);
+  const [popularTab, setPopularTab] = useState<"popular" | "trending">("popular");
 
   // Settings section expand/collapse state
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -712,6 +784,22 @@ function InnerApp() {
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
   const SMALL_BALANCE_THRESHOLD = 1; // Hide tokens worth less than 1 unit
 
+  // Currency symbols and formatting
+  const CURRENCY_SYMBOLS: Record<string, string> = {
+    usd: "$", eur: "\u20AC", gbp: "\u00A3", jpy: "\u00A5",
+    cad: "CA$", aud: "A$", chf: "CHF ", krw: "\u20A9",
+  };
+  const currencySymbol = CURRENCY_SYMBOLS[currency] || "$";
+  const formatFiat = (value: number): string => {
+    if (value < 0.01 && value > 0) return `< ${currencySymbol}0.01`;
+    return `${currencySymbol}${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+  const formatPrice = (value: number): string => {
+    if (value < 0.0001) return `${currencySymbol}${value.toExponential(2)}`;
+    if (value < 0.01) return `${currencySymbol}${value.toPrecision(4)}`;
+    return `${currencySymbol}${value.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 6 })}`;
+  };
+
   useEffect(() => {
     browser.storage.local.get([STORAGE_SEED_SEEN_KEY]).then((res) => {
       if (res && res[STORAGE_SEED_SEEN_KEY]) setSeedSeen(true);
@@ -727,6 +815,63 @@ function InnerApp() {
       }
     });
   }, []);
+
+  // Load Kas.fyi API key
+  useEffect(() => {
+    rpc("GET_KAS_FYI_API_KEY").then((res: any) => {
+      if (res?.ok && res.apiKey) {
+        setKasFyiApiKey(res.apiKey);
+      }
+    });
+  }, []);
+
+  // Close currency dropdown when clicking outside
+  useEffect(() => {
+    if (!showCurrencyDropdown) return;
+    const handleClick = () => setShowCurrencyDropdown(false);
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [showCurrencyDropdown]);
+
+  // Load currency preference
+  useEffect(() => {
+    rpc("GET_CURRENCY").then((res: any) => {
+      if (res?.ok && res.currency) {
+        setCurrency(res.currency);
+      }
+    });
+  }, []);
+
+  // Load trending tokens (mainnet only) + KAS price for home balance
+  useEffect(() => {
+    if (network === "mainnet" && account) {
+      rpc("GET_TRENDING_TOKENS", { limit: 5 }).then((res: any) => {
+        if (res?.ok && res.tokens) {
+          setTrendingTokens(res.tokens);
+        }
+      });
+      rpc("GET_TRENDING_GAINERS", { limit: 5 }).then((res: any) => {
+        if (res?.ok && res.tokens) {
+          setTrendingGainers(res.tokens);
+        }
+      });
+    } else {
+      setTrendingTokens([]);
+      setTrendingGainers([]);
+    }
+  }, [network, account?.address]);
+
+  // Fetch KAS price on load for home fiat balance
+  useEffect(() => {
+    if (account) {
+      rpc("GET_KAS_PRICE").then((res: any) => {
+        if (res?.ok && res.price) {
+          setKasPrice(res.price.price);
+          setKasPriceChange(res.price.change_24h ?? 0);
+        }
+      });
+    }
+  }, [account?.address, currency]);
 
   // Load security features
   const loadSecurityFeatures = useCallback(async () => {
@@ -824,12 +969,25 @@ function InnerApp() {
     });
   }, [setAccount]);
 
-  // Lock wallet when popup closes via port disconnection
+  // Lock wallet when popup closes via port disconnection + keepalive ping
   useEffect(() => {
     // Establish a named port connection to background script
     // When popup closes, the port disconnects and background locks the wallet
     const port = browser.runtime.connect({ name: "popup" });
-    return () => port.disconnect();
+
+    // Keepalive ping: sends POPUP_PING every 2s so the background service
+    // worker knows the popup is still open. On Windows MV3, port.onDisconnect
+    // can fail to fire when the service worker is suspended, so pings act as
+    // a reliable heartbeat. If the background doesn't receive a ping for 5s
+    // it locks the wallet automatically.
+    const pingInterval = setInterval(() => {
+      rpc("POPUP_PING").catch(() => {});
+    }, 2000);
+
+    return () => {
+      clearInterval(pingInterval);
+      port.disconnect();
+    };
   }, []);
 
   useEffect(() => {
@@ -998,7 +1156,7 @@ function InnerApp() {
 
   // Helper to copy watch address
   const handleCopyWatchAddress = (id: string, address: string) => {
-    navigator.clipboard.writeText(address);
+    copyToClipboard(address);
     setCopiedWatchId(id);
     setTimeout(() => setCopiedWatchId(null), 1500);
   };
@@ -1127,7 +1285,10 @@ function InnerApp() {
 
   // Refresh Balance and History
   const handleRefreshBalance = async () => {
+    if (refreshingBalance || refreshedBalance) return;
     setRefreshingBalance(true);
+    setRefreshedBalance(false);
+    let success = false;
     try {
       const res = await rpc("GET_BALANCE");
       if (res?.ok) {
@@ -1137,16 +1298,28 @@ function InnerApp() {
         else num = Number(raw);
         if (Number.isNaN(num)) num = 0;
         setBalance(num);
+        success = true;
+      } else if (res?.locked) {
+        // Wallet is locked in background — redirect to login
+        setAccount(undefined as any);
+        setOnboardingStep("login");
+        setOnboardingMode(true);
+      } else {
+        console.warn("[refresh] Balance fetch failed:", res?.error);
       }
       // Also refresh token balances
       const tokenRes = await rpc("GET_TOKEN_BALANCES");
       if (tokenRes?.ok && tokenRes.balances) {
         setTokenBalances(tokenRes.balances);
       }
-    } catch {
-      // Ignore errors
+    } catch (err) {
+      console.error("[refresh] Balance refresh error:", err);
     }
     setRefreshingBalance(false);
+    if (success) {
+      setRefreshedBalance(true);
+      setTimeout(() => setRefreshedBalance(false), 1200);
+    }
   };
 
   const handleRefreshHistory = async () => {
@@ -1208,6 +1381,55 @@ function InnerApp() {
     }
     setTokenInfoLoading(false);
   };
+
+  const loadTokenPrice = async (tick: string) => {
+    setTokenPriceLoading(true);
+    setTokenPrice(null);
+    try {
+      const res = await rpc("GET_TOKEN_PRICE", { tick });
+      if (res?.ok && res.price) {
+        setTokenPrice({
+          price: res.price.price,
+          change_24h: res.price.change_24h,
+          volume: res.price.volume,
+        });
+      }
+    } catch {
+      // Ignore — price is optional
+    }
+    setTokenPriceLoading(false);
+  };
+
+  // Chart range → CoinGecko days mapping
+  const chartDaysMap: Record<"D" | "W" | "M", 1 | 7 | 30> = { D: 1, W: 7, M: 30 };
+
+  // Fetch KAS price + chart data
+  const loadKasPrice = async (range: "D" | "W" | "M") => {
+    setPriceLoading(true);
+    try {
+      const [priceRes, historyRes] = await Promise.all([
+        rpc("GET_KAS_PRICE"),
+        rpc("GET_KAS_PRICE_HISTORY", { days: chartDaysMap[range] }),
+      ]);
+      if (priceRes?.ok && priceRes.price) {
+        setKasPrice(priceRes.price.price);
+        setKasPriceChange(priceRes.price.change_24h ?? 0);
+      }
+      if (historyRes?.ok && historyRes.history) {
+        setKasPriceHistory(historyRes.history.map((p: any) => p.price));
+      }
+    } catch (err) {
+      console.error("[price] Failed to load KAS price:", err);
+    }
+    setPriceLoading(false);
+  };
+
+  // Refetch chart when range changes (only when viewing KAS)
+  useEffect(() => {
+    if (activeToken?.symbol === "KAS" && mainPage === "token") {
+      loadKasPrice(chartRange);
+    }
+  }, [chartRange, activeToken?.symbol, mainPage]);
 
   const confirmSeed = () => {
     if (!generatedMnemonic) return;
@@ -1345,6 +1567,10 @@ function InnerApp() {
     </ScreenLayout>
   );
 
+  // Compute total fiat balance for home card
+  const homeFiatBalance =
+    kasPrice != null && balance != null ? (balance / 1e8) * kasPrice : null;
+
   const HomeCard = (
     <div className="card home-card">
       <div className="row space-between">
@@ -1355,7 +1581,7 @@ function InnerApp() {
         <button
           className={`secondary-btn pill ${addressCopied ? "copied" : ""}`}
           onClick={() => {
-            navigator.clipboard.writeText(account?.address || "");
+            copyToClipboard(account?.address || "");
             setAddressCopied(true);
             setTimeout(() => setAddressCopied(false), 1000);
           }}
@@ -1367,23 +1593,65 @@ function InnerApp() {
         <div className="row space-between" style={{ alignItems: "flex-start" }}>
           <div>
             <div className="label">Balance</div>
-            <div className="balance-value">
-              {balance !== undefined ? `${(balance / 1e8).toFixed(4)} KAS` : "…"}
+            {/* Primary: fiat value with currency badge */}
+            <div className={`balance-value${refreshingBalance ? " refreshing" : ""}`}>
+              {homeFiatBalance != null ? (
+                <div className="balance-fiat-row">
+                  <span>{formatFiat(homeFiatBalance)}</span>
+                  <button
+                    className="currency-badge-btn"
+                    onClick={(e) => { e.stopPropagation(); setShowCurrencyDropdown(!showCurrencyDropdown); }}
+                    title="Change currency"
+                  >
+                    {currency.toUpperCase()} <span className="currency-caret">▾</span>
+                  </button>
+                </div>
+              ) : balance !== undefined ? (
+                `${(balance / 1e8).toFixed(4)} KAS`
+              ) : "…"}
             </div>
+            {/* Secondary: KAS amount */}
+            {homeFiatBalance != null && balance !== undefined && (
+              <div className="muted small" style={{ marginTop: 2 }}>
+                {(balance / 1e8).toFixed(4)} KAS
+              </div>
+            )}
           </div>
           <button
-            className="refresh-btn"
+            className={`refresh-btn${refreshingBalance ? " refreshing" : ""}${refreshedBalance ? " refreshed" : ""}`}
             onClick={handleRefreshBalance}
-            disabled={refreshingBalance}
-            title="Refresh balance"
+            title={refreshedBalance ? "Updated" : "Refresh balance"}
           >
-            <span className={refreshingBalance ? "spinning" : ""}><RefreshIcon /></span>
+            <span className={refreshingBalance ? "spinning" : ""}>
+              {refreshedBalance ? <CheckIcon /> : <RefreshIcon />}
+            </span>
           </button>
         </div>
         <div className="muted small" style={{ marginTop: 4 }}>
           Network: {network === "mainnet" ? "Kaspa Mainnet" : "Kaspa Testnet"}
         </div>
       </div>
+      {/* Currency picker overlay — inside card, slides down */}
+      {showCurrencyDropdown && (
+        <div className="currency-picker-overlay" onClick={(e) => e.stopPropagation()}>
+          <div className="currency-picker-grid">
+            {Object.entries(CURRENCY_SYMBOLS).map(([code, sym]) => (
+              <button
+                key={code}
+                className={`currency-pick ${currency === code ? "active" : ""}`}
+                onClick={async () => {
+                  setCurrency(code);
+                  setShowCurrencyDropdown(false);
+                  await rpc("SET_CURRENCY", { currency: code });
+                }}
+              >
+                <span className="currency-pick-sym">{sym}</span>
+                <span className="currency-pick-code">{code.toUpperCase()}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -1453,7 +1721,7 @@ function InnerApp() {
                   <button
                     className="secondary-btn"
                     onClick={() =>
-                      navigator.clipboard.writeText(generatedMnemonic || "")
+                      copyToClipboard(generatedMnemonic || "")
                     }
                   >
                     Copy all words
@@ -1551,6 +1819,18 @@ function InnerApp() {
       ? tokens.find((t) => t.token.symbol === activeToken.symbol)?.amount ?? 0
       : 0;
 
+  // Compute fiat value of KAS holdings
+  const kasBalanceFiat =
+    activeToken?.symbol === "KAS" && kasPrice != null && balance != null
+      ? (balance / 1e8) * kasPrice
+      : null;
+
+  // Compute fiat value of KRC-20 token holdings
+  const tokenBalanceFiat =
+    activeToken?.kind === "krc20" && tokenPrice != null && currentTokenAmount != null
+      ? Number(currentTokenAmount) * tokenPrice.price
+      : null;
+
   const TokenDetailCard = activeToken && (
     <div className="card token-detail">
       <div className="row space-between">
@@ -1559,6 +1839,16 @@ function InnerApp() {
           <div className="token-detail-balance">
             {currentTokenAmount} {activeToken.symbol}
           </div>
+          {activeToken.symbol === "KAS" && kasBalanceFiat != null && (
+            <div className="price-usd-value">
+              {formatFiat(kasBalanceFiat)} {currency.toUpperCase()}
+            </div>
+          )}
+          {activeToken.kind === "krc20" && tokenBalanceFiat != null && (
+            <div className="price-usd-value">
+              {formatFiat(tokenBalanceFiat)} {currency.toUpperCase()}
+            </div>
+          )}
         </div>
         <div className="muted small">
           {activeToken.kind === "krc20" && (
@@ -1567,6 +1857,39 @@ function InnerApp() {
           {network === "mainnet" ? "Mainnet" : "Testnet"}
         </div>
       </div>
+
+      {/* Price display for KRC-20 tokens */}
+      {activeToken.kind === "krc20" && (
+        <div className="token-detail-chart-header">
+          <div className="price-header-left">
+            {tokenPrice != null ? (
+              <>
+                <span className="price-display">
+                  {formatPrice(tokenPrice.price)}
+                </span>
+                {tokenPrice.change_24h != null && (
+                  <span className={`price-change ${tokenPrice.change_24h >= 0 ? "up" : "down"}`}>
+                    {tokenPrice.change_24h >= 0 ? "+" : ""}{tokenPrice.change_24h.toFixed(2)}%
+                  </span>
+                )}
+              </>
+            ) : tokenPriceLoading ? (
+              <span className="muted small">Loading price...</span>
+            ) : (
+              <span className="muted small">Price unavailable</span>
+            )}
+          </div>
+          {tokenPrice?.volume != null && tokenPrice.volume > 0 && (
+            <span className="muted small" style={{ fontSize: 10 }}>
+              Vol: {currencySymbol}{tokenPrice.volume >= 1_000_000
+                ? (tokenPrice.volume / 1_000_000).toFixed(1) + "M"
+                : tokenPrice.volume >= 1000
+                  ? (tokenPrice.volume / 1000).toFixed(1) + "k"
+                  : tokenPrice.volume.toFixed(0)}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Token Info Section for KRC-20 */}
       {activeToken.kind === "krc20" && (
@@ -1616,11 +1939,28 @@ function InnerApp() {
         </div>
       )}
 
-      {/* Chart for KAS only */}
+      {/* Price chart for KAS */}
       {activeToken.symbol === "KAS" && (
         <>
           <div className="token-detail-chart-header">
-            <span className="muted small">Price (demo)</span>
+            <div className="price-header-left">
+              {kasPrice != null ? (
+                <>
+                  <span className="price-display">
+                    {kasPrice < 0.01
+                      ? `${currencySymbol}${kasPrice.toPrecision(4)}`
+                      : `${currencySymbol}${kasPrice.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`}
+                  </span>
+                  <span className={`price-change ${kasPriceChange >= 0 ? "up" : "down"}`}>
+                    {kasPriceChange >= 0 ? "+" : ""}{kasPriceChange.toFixed(2)}%
+                  </span>
+                </>
+              ) : priceLoading ? (
+                <span className="muted small">Loading price...</span>
+              ) : (
+                <span className="muted small">Price unavailable</span>
+              )}
+            </div>
             <div className="chart-tabs">
               {(["D", "W", "M"] as const).map((r) => (
                 <button
@@ -1635,7 +1975,17 @@ function InnerApp() {
           </div>
 
           <div className="token-chart">
-            <TokenChart />
+            {priceLoading && kasPriceHistory.length === 0 ? (
+              <div className="chart-loading">
+                <span className="muted small">Loading chart...</span>
+              </div>
+            ) : kasPriceHistory.length > 0 ? (
+              <TokenChart data={kasPriceHistory} positive={kasPriceChange >= 0} />
+            ) : (
+              <div className="chart-loading">
+                <span className="muted small">No chart data</span>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -1740,7 +2090,7 @@ function InnerApp() {
       <button
         className="secondary-btn"
         onClick={() => {
-          navigator.clipboard.writeText(account?.address || "");
+          copyToClipboard(account?.address || "");
           showSaveSuccess("Address copied");
         }}
       >
@@ -1749,26 +2099,105 @@ function InnerApp() {
     </div>
   );
 
+  // Send page: find selected token's balance for display
+  const selectedTokenData = tokens.find(({ token }) => token.symbol === selectedToken);
+  const selectedTokenBalance = selectedTokenData
+    ? (typeof selectedTokenData.amount === "string"
+        ? selectedTokenData.amount
+        : typeof selectedTokenData.amount === "number"
+          ? selectedTokenData.amount.toLocaleString(undefined, { maximumFractionDigits: 8 })
+          : "0")
+    : "0";
+  const selectedTokenFiat = selectedToken === "KAS" && kasPrice
+    ? formatFiat((typeof selectedTokenData?.amount === "number" ? selectedTokenData.amount : 0) * kasPrice)
+    : null;
+  // Compute fiat equivalent of amount being typed
+  const amountNum = parseFloat(amount) || 0;
+  const amountFiat = selectedToken === "KAS" && kasPrice && amountNum > 0
+    ? formatFiat(amountNum * kasPrice)
+    : null;
+  // Max sendable
+  const handleMaxAmount = () => {
+    if (selectedTokenData) {
+      const bal = selectedTokenData.amount;
+      if (selectedToken === "KAS" && typeof bal === "number") {
+        const max = Math.max(0, bal - 0.001); // leave dust for fee
+        setAmount(max > 0 ? max.toFixed(8).replace(/0+$/, "").replace(/\.$/, "") : "0");
+      } else {
+        setAmount(String(bal));
+      }
+    }
+  };
+
   const SendCard = (
-    <div className="card" style={{ display: "grid", gap: 10 }}>
-      <div>
-        <div className="muted small">Token</div>
-        <select
-          className="input"
-          value={selectedToken}
-          onChange={(e) => setSelectedToken(e.target.value)}
-          style={{ appearance: "none" }}
-        >
-          {tokenList.map((t) => (
-            <option key={t.id} value={t.symbol}>
-              {t.symbol}
-            </option>
+    <div className="send-page">
+      {/* ── Token selector row ── */}
+      <button
+        className="send-token-selector"
+        onClick={() => tokenList.length > 1 && setShowTokenSheet(!showTokenSheet)}
+      >
+        <div className="send-token-icon">
+          {selectedToken === "KAS" ? "K" : selectedToken.charAt(0)}
+        </div>
+        <div className="send-token-info">
+          <span className="send-token-symbol">{selectedToken}</span>
+          <span className="send-token-bal">
+            Balance: {selectedTokenBalance}
+            {selectedTokenFiat && <span className="send-token-fiat"> ≈ {selectedTokenFiat}</span>}
+          </span>
+        </div>
+        {tokenList.length > 1 && (
+          <span className="send-token-chevron">›</span>
+        )}
+      </button>
+
+      {/* ── Token selection sheet ── */}
+      {showTokenSheet && (
+        <div className="send-token-sheet">
+          {tokens.map(({ token, amount: bal }) => (
+            <button
+              key={token.id}
+              className={`send-token-row ${selectedToken === token.symbol ? "active" : ""}`}
+              onClick={() => { setSelectedToken(token.symbol); setShowTokenSheet(false); }}
+            >
+              <div className="send-token-icon small">
+                {token.symbol === "KAS" ? "K" : token.symbol.charAt(0)}
+              </div>
+              <div className="send-token-row-info">
+                <span className="send-token-row-sym">{token.symbol}</span>
+                {token.kind === "krc20" && <span className="token-badge">KRC-20</span>}
+              </div>
+              <span className="send-token-row-bal">
+                {typeof bal === "string" ? bal : typeof bal === "number" ? bal.toLocaleString(undefined, { maximumFractionDigits: 4 }) : "0"}
+              </span>
+            </button>
           ))}
-        </select>
+        </div>
+      )}
+
+      {/* ── Amount input area ── */}
+      <div className="send-amount-area">
+        <div className="send-amount-row">
+          <input
+            className="send-amount-input"
+            type="text"
+            inputMode="decimal"
+            placeholder="0"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+          <span className="send-amount-symbol">{selectedToken}</span>
+        </div>
+        <div className="send-amount-sub">
+          {amountFiat && <span className="send-amount-fiat">≈ {amountFiat}</span>}
+          <button className="send-max-btn" onClick={handleMaxAmount}>MAX</button>
+        </div>
       </div>
-      <div>
-        <div className="row space-between" style={{ marginBottom: 4 }}>
-          <span className="muted small">Recipient</span>
+
+      {/* ── Recipient ── */}
+      <div className="send-recipient-area">
+        <div className="send-recipient-header">
+          <span className="send-field-label">To</span>
           {addressBook.length > 0 && (
             <button
               className="address-book-toggle"
@@ -1780,11 +2209,10 @@ function InnerApp() {
         </div>
         <input
           className="input"
-          placeholder="Recipient address"
+          placeholder="Recipient address (kaspa:...)"
           value={recipient}
           onChange={(e) => setRecipient(e.target.value)}
         />
-        {/* Address Book Picker */}
         {showAddressBookPicker && addressBook.length > 0 && (
           <div className="address-book-picker">
             {addressBook.map((contact) => (
@@ -1800,23 +2228,15 @@ function InnerApp() {
           </div>
         )}
       </div>
-      <input
-        className="input"
-        placeholder={`Amount (${selectedToken})`}
-        value={amount}
-        onChange={(e) => setAmount(e.target.value)}
-      />
+
+      {/* ── Review button ── */}
       <button
         className="primary-btn"
         onClick={handleSendClick}
+        disabled={!recipient || !amount || parseFloat(amount) <= 0}
       >
         Review Transaction
       </button>
-      {selectedToken !== "KAS" && (
-        <div className="muted small" style={{ color: "#f0a000" }}>
-          Note: KRC-20 transfers require Schnorr signature support. This is currently in development.
-        </div>
-      )}
       {error && <div className="error-text">{error}</div>}
     </div>
   );
@@ -2013,7 +2433,7 @@ function InnerApp() {
                       <button
                         className="secondary-btn"
                         onClick={() =>
-                          navigator.clipboard.writeText(exportedSeed)
+                          copyToClipboard(exportedSeed)
                         }
                       >
                         Copy seed
@@ -2152,6 +2572,57 @@ function InnerApp() {
                     disabled={savingRpc}
                   >
                     Reset
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="settings-subsection">
+              <div className="settings-subsection-title">KRC-20 Price Data</div>
+              <div className="muted small" style={{ marginBottom: 8 }}>
+                Prices for popular KRC-20 tokens are fetched automatically from CoinGecko.
+                For additional tokens, optionally add a{" "}
+                <a
+                  href="https://docs.kas.fyi/quickstart"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "#b983ff" }}
+                >
+                  Kas.fyi API key
+                </a>
+                {" "}as a fallback source.
+              </div>
+              <div className="rpc-config">
+                <label className="rpc-label">Kas.fyi API Key (optional)</label>
+                <input
+                  className="input"
+                  type="password"
+                  placeholder="Optional — for extra token coverage"
+                  value={kasFyiApiKey}
+                  onChange={(e) => setKasFyiApiKey(e.target.value)}
+                />
+                <div className="rpc-actions">
+                  <button
+                    className="secondary-btn pill"
+                    onClick={async () => {
+                      setSavingApiKey(true);
+                      await rpc("SET_KAS_FYI_API_KEY", { apiKey: kasFyiApiKey });
+                      setSavingApiKey(false);
+                      setSaveSuccess("api-key");
+                      setTimeout(() => setSaveSuccess(null), 2000);
+                    }}
+                    disabled={savingApiKey}
+                  >
+                    {savingApiKey ? "Saving..." : saveSuccess === "api-key" ? "Saved ✓" : "Save"}
+                  </button>
+                  <button
+                    className="secondary-btn pill"
+                    onClick={async () => {
+                      setKasFyiApiKey("");
+                      await rpc("SET_KAS_FYI_API_KEY", { apiKey: "" });
+                    }}
+                  >
+                    Clear
                   </button>
                 </div>
               </div>
@@ -2459,7 +2930,7 @@ function InnerApp() {
                         className="secondary-btn pill"
                         style={{ fontSize: 10, padding: "4px 8px" }}
                         onClick={() => {
-                          navigator.clipboard.writeText(contact.address);
+                          copyToClipboard(contact.address);
                           showSaveSuccess("Address copied");
                         }}
                       >
@@ -2676,11 +3147,13 @@ function InnerApp() {
               setSelectedToken(token.symbol);
               setActiveToken(token);
               setMainPage("token");
-              // Load token info for KRC-20 tokens
+              // Load token info + price for KRC-20 tokens
               if (token.kind === "krc20") {
                 loadTokenInfo(token.symbol);
+                loadTokenPrice(token.symbol);
               } else {
                 setTokenInfo(null);
+                setTokenPrice(null);
               }
             }}
           >
@@ -2702,6 +3175,80 @@ function InnerApp() {
         {hideSmallBalances && hiddenCount > 0 && (
           <div className="muted small" style={{ textAlign: "center", padding: 8 }}>
             {hiddenCount} token{hiddenCount > 1 ? "s" : ""} hidden (balance {"<"} {SMALL_BALANCE_THRESHOLD})
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // Popular/Trending tokens — exclude tokens user already holds
+  const heldSymbols = new Set(tokens.map(({ token }) => token.symbol.toUpperCase()));
+  const popularTokensFiltered = trendingTokens.filter(
+    (t: any) => !heldSymbols.has(t.symbol.toUpperCase())
+  );
+
+  // Filter trending gainers too
+  const trendingGainersFiltered = trendingGainers.filter(
+    (t: any) => !heldSymbols.has(t.symbol.toUpperCase())
+  );
+
+  const activePopularList = popularTab === "popular" ? popularTokensFiltered : trendingGainersFiltered;
+  const hasAnyPopular = popularTokensFiltered.length > 0 || trendingGainersFiltered.length > 0;
+
+  const PopularTokensCard = network === "mainnet" && hasAnyPopular && (
+    <div className="card">
+      <div className="row space-between" style={{ marginBottom: 8 }}>
+        <div className="card-title" style={{ margin: 0 }}>Discover</div>
+        <div className="popular-tabs">
+          <button
+            className={`popular-tab ${popularTab === "popular" ? "active" : ""}`}
+            onClick={() => setPopularTab("popular")}
+          >
+            Popular
+          </button>
+          <button
+            className={`popular-tab ${popularTab === "trending" ? "active" : ""}`}
+            onClick={() => setPopularTab("trending")}
+          >
+            Trending
+          </button>
+        </div>
+      </div>
+      <div className="token-list">
+        {activePopularList.length > 0 ? activePopularList.map((t: any) => (
+          <button
+            key={t.geckoId || t.symbol}
+            className="token-row"
+            onClick={() => {
+              const tmpMeta: TokenMeta = {
+                id: `trending_${t.symbol}`,
+                symbol: t.symbol,
+                name: t.name,
+                decimals: 8,
+                kind: "krc20",
+              };
+              setSelectedToken(t.symbol);
+              setActiveToken(tmpMeta);
+              setMainPage("token");
+              loadTokenInfo(t.symbol);
+              loadTokenPrice(t.symbol);
+            }}
+          >
+            <div className="token-main">
+              <span className="token-symbol">{t.symbol}</span>
+              <span className="token-name">{t.name}</span>
+              <span className="token-badge">KRC-20</span>
+            </div>
+            <div className="popular-token-price">
+              <span className="popular-price-value">{formatPrice(t.price)}</span>
+              <span className={`price-change-small ${t.change_24h >= 0 ? "up" : "down"}`}>
+                {t.change_24h >= 0 ? "+" : ""}{t.change_24h.toFixed(1)}%
+              </span>
+            </div>
+          </button>
+        )) : (
+          <div className="muted small" style={{ textAlign: "center", padding: 12 }}>
+            No {popularTab === "trending" ? "trending" : "popular"} tokens found
           </div>
         )}
       </div>
@@ -2776,6 +3323,7 @@ function InnerApp() {
               </div>
             )}
             {TokensCard}
+            {PopularTokensCard}
             {ActivityList}
           </ScreenLayout>
         )}
@@ -2811,7 +3359,7 @@ function InnerApp() {
                 <div
                   className="watch-detail-address"
                   onClick={() => {
-                    navigator.clipboard.writeText(selectedWatch.address);
+                    copyToClipboard(selectedWatch.address);
                     setCopiedWatchId(selectedWatch.id);
                     setTimeout(() => setCopiedWatchId(null), 1500);
                   }}
@@ -3052,27 +3600,22 @@ function generateRealQRCode(text: string): boolean[][] {
     reserved[size - 1 - i][8] = true;
   }
 
-  // Encode data as alphanumeric
-  const alphanumericTable = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
-  const upperText = text.toUpperCase();
+  // Encode data as byte mode (preserves lowercase for Kaspa addresses)
+  const textBytes: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    textBytes.push(text.charCodeAt(i) & 0xff);
+  }
 
   // Build data bits
   let bits = "";
-  // Mode indicator (alphanumeric = 0010)
-  bits += "0010";
-  // Character count indicator (9 bits for version 4 alphanumeric)
-  bits += upperText.length.toString(2).padStart(9, "0");
+  // Mode indicator (byte = 0100)
+  bits += "0100";
+  // Character count indicator (8 bits for byte mode in versions 1-9)
+  bits += textBytes.length.toString(2).padStart(8, "0");
 
-  // Encode character pairs
-  for (let i = 0; i < upperText.length; i += 2) {
-    const c1 = alphanumericTable.indexOf(upperText[i]);
-    if (i + 1 < upperText.length) {
-      const c2 = alphanumericTable.indexOf(upperText[i + 1]);
-      const val = c1 * 45 + c2;
-      bits += val.toString(2).padStart(11, "0");
-    } else {
-      bits += c1.toString(2).padStart(6, "0");
-    }
+  // Encode each byte
+  for (const b of textBytes) {
+    bits += b.toString(2).padStart(8, "0");
   }
 
   // Add terminator
@@ -3219,23 +3762,28 @@ function generateECCodewords(data: number[], ecCount: number): number[] {
 
 /* ---------- Tiny SVG chart for token detail ---------- */
 
-const TokenChart: React.FC = () => {
-  const width = 260;
-  const height = 70;
+const TokenChart: React.FC<{ data: number[]; positive?: boolean }> = ({ data, positive = true }) => {
+  const width = 280;
+  const height = 80;
+  const padding = 2;
 
-  // Simple fake data – just for visual
-  const points = [12, 28, 18, 40, 32, 55, 48];
-  const step = width / (points.length - 1);
+  if (!data.length) return null;
 
-  const path = points
-    .map((y, i) => {
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const step = width / Math.max(data.length - 1, 1);
+
+  const path = data
+    .map((val, i) => {
       const x = i * step;
-      const yy = height - y;
-      return `${i === 0 ? "M" : "L"} ${x} ${yy}`;
+      const y = padding + (height - padding * 2) * (1 - (val - min) / range);
+      return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
     })
     .join(" ");
 
   const areaPath = `${path} L ${width} ${height} L 0 ${height} Z`;
+  const color = positive ? "var(--accent)" : "var(--danger)";
 
   return (
     <svg
@@ -3245,12 +3793,12 @@ const TokenChart: React.FC = () => {
     >
       <defs>
         <linearGradient id="tokenArea" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.8" />
-          <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+          <stop offset="0%" stopColor={color} stopOpacity="0.6" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d={areaPath} fill="url(#tokenArea)" />
-      <path d={path} fill="none" stroke="var(--accent)" strokeWidth={2} />
+      <path d={path} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" />
     </svg>
   );
 };

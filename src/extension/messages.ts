@@ -43,7 +43,21 @@ export type MessageType =
   | "ADD_ADDRESS_BOOK_ENTRY"
   | "UPDATE_ADDRESS_BOOK_ENTRY"
   | "REMOVE_ADDRESS_BOOK_ENTRY"
-  | "RESOLVE_ADDRESS_LABEL";
+  | "RESOLVE_ADDRESS_LABEL"
+  // Price data
+  | "GET_KAS_PRICE"
+  | "GET_KAS_PRICE_HISTORY"
+  | "GET_TOKEN_PRICE"
+  | "GET_TRENDING_TOKENS"
+  | "GET_TRENDING_GAINERS"
+  // Currency settings
+  | "GET_CURRENCY"
+  | "SET_CURRENCY"
+  // API key settings
+  | "GET_KAS_FYI_API_KEY"
+  | "SET_KAS_FYI_API_KEY"
+  // Popup keepalive
+  | "POPUP_PING";
 
 export type RpcMessage<T = any> = {
   type: MessageType;

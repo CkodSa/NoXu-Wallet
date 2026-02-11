@@ -5,13 +5,17 @@ import { Wallet } from "../../core/wallet";
 import { DEFAULT_NETWORK, getNetworkConfig } from "../../core/networks";
 import { KaspaClient } from "../../core/kaspa/client";
 import {
-  KRC20Client,
   KRC20TransferClient,
   parseTokenAmount,
-  createTransferInscription,
-  serializeInscription,
 } from "../../core/kaspa/krc20-client";
 import type { RpcMessage } from "../messages";
+import {
+  getKaspaPrice,
+  getKaspaPriceHistory,
+  getKrc20Price,
+  getTopKrc20Tokens,
+  getTopKrc20TokensByGainers,
+} from "../../core/kaspa/price-client";
 import {
   DEFAULT_SECURITY_FEATURES,
   generateId,
@@ -46,6 +50,8 @@ const DEFAULT_AUTO_LOCK_MINUTES = 2;
 
 type WalletSettings = {
   autoLockMinutes: number;
+  kasFyiApiKey: string;
+  currency: string;
 };
 
 // Single wallet instance for this background context
@@ -54,6 +60,8 @@ const wallet = new Wallet(DEFAULT_NETWORK);
 // Settings with defaults
 let settings: WalletSettings = {
   autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES,
+  kasFyiApiKey: "",
+  currency: "usd",
 };
 
 // Security features state
@@ -102,6 +110,12 @@ async function loadSettings(): Promise<void> {
       const r = raw as Record<string, unknown>;
       if (typeof r.autoLockMinutes === "number" && r.autoLockMinutes >= 0) {
         settings.autoLockMinutes = r.autoLockMinutes;
+      }
+      if (typeof r.kasFyiApiKey === "string") {
+        settings.kasFyiApiKey = r.kasFyiApiKey;
+      }
+      if (typeof r.currency === "string" && r.currency.length > 0) {
+        settings.currency = r.currency;
       }
     }
   } catch (err) {
@@ -284,12 +298,45 @@ const initPromise = Promise.all([
 
 /**
  * Lock wallet when popup closes.
- * The popup establishes a port connection on load; when closed, the port disconnects.
+ *
+ * Uses a keepalive ping system instead of port.onDisconnect because
+ * Manifest V3 service workers on Windows can be suspended/terminated,
+ * causing onDisconnect to never fire.
+ *
+ * The popup sends POPUP_PING every 2 seconds. If no ping is received
+ * for 5 seconds, the wallet locks automatically.
  */
+let lastPopupPing = 0;
+let popupWatchdog: ReturnType<typeof setInterval> | null = null;
+
+function startPopupWatchdog() {
+  if (popupWatchdog) return; // Already running
+  lastPopupPing = Date.now();
+  popupWatchdog = setInterval(() => {
+    if (Date.now() - lastPopupPing > 5000) {
+      // No ping in 5 seconds — popup is closed
+      wallet.lock();
+      stopPopupWatchdog();
+    }
+  }, 2000);
+}
+
+function stopPopupWatchdog() {
+  if (popupWatchdog) {
+    clearInterval(popupWatchdog);
+    popupWatchdog = null;
+  }
+}
+
+// Also keep port-based detection as a secondary mechanism
 browser.runtime.onConnect.addListener((port) => {
   if (port.name === "popup") {
+    startPopupWatchdog();
     port.onDisconnect.addListener(() => {
+      // On Mac/Linux this fires reliably, so lock immediately.
+      // On Windows, the watchdog will handle it if this doesn't fire.
       wallet.lock();
+      stopPopupWatchdog();
     });
   }
 });
@@ -755,7 +802,7 @@ browser.runtime.onMessage.addListener(
               return { ok: false, error: "No address provided and wallet is locked" };
             }
             try {
-              const krc20Client = new KRC20Client(wallet.getNetwork());
+              const krc20Client = new KRC20TransferClient(wallet.getNetwork());
               const balances = await krc20Client.getTokenBalances(address);
               // Convert BigInt to string for JSON serialization
               const serializedBalances = balances.map((b) => ({
@@ -776,7 +823,7 @@ browser.runtime.onMessage.addListener(
               return { ok: false, error: "Token ticker is required" };
             }
             try {
-              const krc20Client = new KRC20Client(wallet.getNetwork());
+              const krc20Client = new KRC20TransferClient(wallet.getNetwork());
               const info = await krc20Client.getTokenInfo(tick);
               if (!info) {
                 return { ok: false, error: "Token not found" };
@@ -806,7 +853,7 @@ browser.runtime.onMessage.addListener(
           case "GET_TOKEN_LIST": {
             const limit = message.payload?.limit || 50;
             try {
-              const krc20Client = new KRC20Client(wallet.getNetwork());
+              const krc20Client = new KRC20TransferClient(wallet.getNetwork());
               const tokens = await krc20Client.getTokenList(limit);
               // Convert BigInt to string for JSON serialization
               const serializedTokens = tokens.map((t) => ({
@@ -853,8 +900,8 @@ browser.runtime.onMessage.addListener(
               }
 
               // Check token balance
-              const krc20Client = new KRC20Client(network);
-              const balances = await krc20Client.getTokenBalances(account.address);
+              const transferClient = new KRC20TransferClient(network);
+              const balances = await transferClient.getTokenBalances(account.address);
               const tokenBalance = balances.find(
                 (b) => b.tick.toUpperCase() === tick.toUpperCase()
               );
@@ -866,42 +913,49 @@ browser.runtime.onMessage.addListener(
                 };
               }
 
-              // Create the transfer inscription
-              const inscription = createTransferInscription(tick, amountRaw, to);
-              const inscriptionJson = serializeInscription(inscription);
+              // Get UTXOs for the transaction
+              const utxos = await wallet.getUTXOs();
 
-              // For now, return that the transfer requires full Kaspa transaction signing
-              // Real KRC-20 transfers need:
-              // 1. Commit TX: P2SH output with inscription script
-              // 2. Reveal TX: Spend the P2SH with signature revealing the script
-              // This requires kaspa-wasm or similar for proper Schnorr signatures
+              if (utxos.length === 0) {
+                return {
+                  ok: false,
+                  error: "No UTXOs available. You need KAS to pay for transaction fees.",
+                };
+              }
 
-              // Log the prepared inscription for debugging
-              console.log("[KRC20] Transfer prepared:", {
-                from: account.address,
+              // Execute the full KRC-20 transfer (commit + reveal)
+              const result = await transferClient.executeTransfer(
+                utxos,
+                account.privateKey,
+                account.publicKey,
                 to,
-                tick: tick.toUpperCase(),
-                amount: amountRaw.toString(),
-                inscription: inscriptionJson,
-              });
+                tick,
+                amountRaw,
+                account.address,
+              );
 
-              return {
-                ok: false,
-                error:
-                  "KRC-20 transfers are not yet fully supported. Full Kaspa transaction signing (Schnorr signatures) is required. This feature is coming soon.",
-                prepared: {
-                  inscription: inscriptionJson,
-                  from: account.address,
-                  to,
-                  tick: tick.toUpperCase(),
-                  amount: amountRaw.toString(),
-                },
-              };
+              if (result.success) {
+                console.info("[KRC20] Transfer successful:", {
+                  commitTxId: result.commitTxId,
+                  revealTxId: result.revealTxId,
+                });
+                return {
+                  ok: true,
+                  commitTxId: result.commitTxId,
+                  revealTxId: result.revealTxId,
+                };
+              } else {
+                return {
+                  ok: false,
+                  error: result.error || "KRC-20 transfer failed",
+                  commitTxId: result.commitTxId, // May have partial success
+                };
+              }
             } catch (err: any) {
               console.error("[KRC20] Transfer error:", err);
               return {
                 ok: false,
-                error: err?.message || "Failed to prepare KRC-20 transfer",
+                error: err?.message || "Failed to execute KRC-20 transfer",
               };
             }
           }
@@ -959,6 +1013,100 @@ browser.runtime.onMessage.addListener(
             const { address } = message.payload;
             const entry = addressBook.entries.find((e) => e.address === address);
             return { ok: true, label: entry?.label || null, entry: entry || null };
+          }
+
+          // ==================== PRICE DATA ====================
+
+          case "GET_KAS_PRICE": {
+            try {
+              const price = await getKaspaPrice(settings.currency);
+              return { ok: true, price };
+            } catch (err: any) {
+              return { ok: false, error: err?.message || "Failed to fetch price" };
+            }
+          }
+
+          case "GET_KAS_PRICE_HISTORY": {
+            const { days } = message.payload || {};
+            const validDays = [1, 7, 30].includes(days) ? days : 7;
+            try {
+              const history = await getKaspaPriceHistory(validDays, settings.currency);
+              return { ok: true, history };
+            } catch (err: any) {
+              return { ok: false, error: err?.message || "Failed to fetch price history" };
+            }
+          }
+
+          case "GET_TOKEN_PRICE": {
+            const { tick } = message.payload || {};
+            if (!tick) {
+              return { ok: false, error: "Token ticker is required" };
+            }
+            try {
+              // CoinGecko is tried first (free, no key), then Kas.fyi as fallback
+              const price = await getKrc20Price(
+                tick,
+                settings.currency,
+                settings.kasFyiApiKey || undefined,
+              );
+              return { ok: true, price };
+            } catch (err: any) {
+              return { ok: false, error: err?.message || "Failed to fetch token price" };
+            }
+          }
+
+          case "GET_TRENDING_TOKENS": {
+            const limit = message.payload?.limit || 5;
+            try {
+              const tokens = await getTopKrc20Tokens(limit, settings.currency);
+              return { ok: true, tokens };
+            } catch (err: any) {
+              return { ok: false, error: err?.message || "Failed to fetch trending tokens" };
+            }
+          }
+
+          case "GET_TRENDING_GAINERS": {
+            const limit = message.payload?.limit || 5;
+            try {
+              const tokens = await getTopKrc20TokensByGainers(limit, settings.currency);
+              return { ok: true, tokens };
+            } catch (err: any) {
+              return { ok: false, error: err?.message || "Failed to fetch trending gainers" };
+            }
+          }
+
+          case "GET_CURRENCY": {
+            return { ok: true, currency: settings.currency };
+          }
+
+          case "SET_CURRENCY": {
+            const { currency } = message.payload || {};
+            const valid = ["usd", "eur", "gbp", "jpy", "cad", "aud", "chf", "krw"];
+            if (typeof currency === "string" && valid.includes(currency)) {
+              settings.currency = currency;
+              await persistSettings();
+              return { ok: true, currency: settings.currency };
+            }
+            return { ok: false, error: "Invalid currency" };
+          }
+
+          case "GET_KAS_FYI_API_KEY": {
+            return { ok: true, apiKey: settings.kasFyiApiKey || "" };
+          }
+
+          case "SET_KAS_FYI_API_KEY": {
+            const { apiKey } = message.payload || {};
+            settings.kasFyiApiKey = typeof apiKey === "string" ? apiKey.trim() : "";
+            await persistSettings();
+            return { ok: true };
+          }
+
+          case "POPUP_PING": {
+            // Keepalive ping from popup — reset watchdog timer
+            lastPopupPing = Date.now();
+            if (!popupWatchdog) startPopupWatchdog();
+            resetAutoLockTimer();
+            return { ok: true };
           }
 
           default: {
