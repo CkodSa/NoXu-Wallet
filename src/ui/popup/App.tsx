@@ -1483,6 +1483,22 @@ function InnerApp() {
       : []),
   ];
 
+  // Ensure the currently selected send-token is always in the list
+  // (covers Popular/Trending tokens the user doesn't hold yet)
+  if (
+    selectedToken !== "KAS" &&
+    !tokenList.some((t) => t.symbol === selectedToken)
+  ) {
+    tokenList.push({
+      id: `selected_${selectedToken}`,
+      symbol: selectedToken,
+      name: selectedToken,
+      decimals: 8,
+      kind: "krc20",
+      visibleByDefault: true,
+    });
+  }
+
   const tokens = tokenList.map((t) => {
     if (t.symbol === "KAS") {
       return {
@@ -2147,7 +2163,7 @@ function InnerApp() {
           </span>
         </div>
         {tokenList.length > 1 && (
-          <span className="send-token-chevron">›</span>
+          <span className={`send-token-chevron${showTokenSheet ? " open" : ""}`}>›</span>
         )}
       </button>
 
@@ -3424,7 +3440,13 @@ function InnerApp() {
           </ScreenLayout>
         )}
       </div>
-      <NavBar current={mainPage} onChange={setMainPage} />
+      <NavBar current={mainPage} onChange={(page) => {
+        if (page === "send") {
+          setSelectedToken("KAS");
+          setShowTokenSheet(false);
+        }
+        setMainPage(page);
+      }} />
       {ConfirmSendModal}
       {DelayedTxModal}
     </div>

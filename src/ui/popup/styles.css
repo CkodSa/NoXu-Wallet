@@ -2082,6 +2082,11 @@ textarea.input:focus {
   color: var(--muted);
   font-weight: 300;
   transition: transform 0.15s;
+  transform: rotate(0deg);
+}
+
+.send-token-chevron.open {
+  transform: rotate(90deg);
 }
 
 /* Token selection sheet */
