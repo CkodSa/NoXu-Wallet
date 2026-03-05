@@ -15,6 +15,7 @@ import {
   getKrc20Price,
   getTopKrc20Tokens,
   getTopKrc20TokensByGainers,
+  batchFetchHistoricalPrices,
 } from "../../core/kaspa/price-client";
 import {
   DEFAULT_SECURITY_FEATURES,
@@ -44,6 +45,66 @@ const STORAGE_KEY = "kaspa_wallet_state";
 const SETTINGS_KEY = "kaspa_wallet_settings";
 const SECURITY_KEY = "kaspa_security_features";
 const ADDRESS_BOOK_KEY = "kaspa_address_book";
+const PNL_DATA_KEY = "kaspa_pnl_data";
+
+// ==================== PNL TYPES ====================
+
+type CostBasisLot = {
+  id: string;
+  txid: string;
+  asset: string;
+  amountRaw: number;
+  remainingRaw: number;
+  pricePerUnit: number;
+  currency: string;
+  timestamp: number;
+};
+
+type RealizedPnlEvent = {
+  txid: string;
+  asset: string;
+  amountRaw: number;
+  costBasis: number;
+  proceeds: number;
+  pnl: number;
+  currency: string;
+  timestamp: number;
+};
+
+type AssetPnlSummary = {
+  asset: string;
+  totalCostBasis: number;
+  weightedAvgPrice: number;
+  currentHolding: number;
+  realizedPnl: number;
+  realizedTxCount: number;
+  totalBought: number;
+  totalSold: number;
+  avgBuyPrice: number;
+  avgSellPrice: number;
+};
+
+type PnlData = {
+  version: number;
+  address: string;
+  lots: CostBasisLot[];
+  realizedEvents: RealizedPnlEvent[];
+  summaries: Record<string, AssetPnlSummary>;
+  lastProcessedTxid: string | null;
+  backfillComplete: boolean;
+  currency: string;
+};
+
+const DEFAULT_PNL_DATA: PnlData = {
+  version: 1,
+  address: "",
+  lots: [],
+  realizedEvents: [],
+  summaries: {},
+  lastProcessedTxid: null,
+  backfillComplete: false,
+  currency: "usd",
+};
 
 // Default auto-lock timeout in minutes (0 = disabled)
 const DEFAULT_AUTO_LOCK_MINUTES = 2;
@@ -69,6 +130,9 @@ let securityFeatures: SecurityFeaturesState = { ...DEFAULT_SECURITY_FEATURES };
 
 // Address book state
 let addressBook: AddressBook = { entries: [] };
+
+// PnL tracking state
+let pnlData: PnlData = { ...DEFAULT_PNL_DATA };
 
 // Track if currently in duress mode (decoy wallet active)
 let isDuressMode = false;
@@ -203,6 +267,32 @@ async function persistAddressBook(): Promise<void> {
 }
 
 /**
+ * Load PnL data from browser.storage.local
+ */
+async function loadPnlData(): Promise<void> {
+  try {
+    const res = await browser.storage.local.get([PNL_DATA_KEY]);
+    const raw = res?.[PNL_DATA_KEY];
+    if (raw && typeof raw === "object" && (raw as PnlData).version === 1) {
+      pnlData = raw as PnlData;
+    }
+  } catch (err) {
+    console.error("[pnl] Failed to load PnL data:", err);
+  }
+}
+
+/**
+ * Persist PnL data to browser.storage.local
+ */
+async function persistPnlData(): Promise<void> {
+  try {
+    await browser.storage.local.set({ [PNL_DATA_KEY]: pnlData });
+  } catch (err) {
+    console.error("[pnl] Failed to persist PnL data:", err);
+  }
+}
+
+/**
  * Check and execute ready delayed transactions
  */
 async function checkDelayedTransactions(): Promise<void> {
@@ -291,6 +381,7 @@ const initPromise = Promise.all([
   loadSettings(),
   loadSecurityFeatures(),
   loadAddressBook(),
+  loadPnlData(),
 ]).then(() => {
   // Start delayed transaction checker after loading
   startDelayedTxChecker();
@@ -340,6 +431,233 @@ browser.runtime.onConnect.addListener((port) => {
     });
   }
 });
+
+// ==================== PNL ENGINE ====================
+
+function processIncomingTx(
+  data: PnlData,
+  tx: { txid: string; amountSompi: number; time?: number },
+  priceAtTime: number,
+  currency: string,
+): void {
+  data.lots.push({
+    id: generateId(),
+    txid: tx.txid,
+    asset: "KAS",
+    amountRaw: tx.amountSompi,
+    remainingRaw: tx.amountSompi,
+    pricePerUnit: priceAtTime,
+    currency,
+    timestamp: tx.time || Math.floor(Date.now() / 1000),
+  });
+}
+
+function processOutgoingTx(
+  data: PnlData,
+  tx: { txid: string; amountSompi: number; time?: number },
+  priceAtTime: number,
+  currency: string,
+): void {
+  let remainingToSell = tx.amountSompi;
+  let totalCostBasis = 0;
+
+  // FIFO: consume oldest lots first (lots are in chronological order)
+  for (const lot of data.lots) {
+    if (lot.asset !== "KAS" || lot.remainingRaw <= 0) continue;
+    if (remainingToSell <= 0) break;
+
+    const consumed = Math.min(lot.remainingRaw, remainingToSell);
+    totalCostBasis += (consumed / 1e8) * lot.pricePerUnit;
+    lot.remainingRaw -= consumed;
+    remainingToSell -= consumed;
+  }
+
+  const proceeds = (tx.amountSompi / 1e8) * priceAtTime;
+
+  data.realizedEvents.push({
+    txid: tx.txid,
+    asset: "KAS",
+    amountRaw: tx.amountSompi,
+    costBasis: totalCostBasis,
+    proceeds,
+    pnl: proceeds - totalCostBasis,
+    currency,
+    timestamp: tx.time || Math.floor(Date.now() / 1000),
+  });
+
+  // Cap realized events at 500
+  if (data.realizedEvents.length > 500) {
+    data.realizedEvents = data.realizedEvents.slice(-500);
+  }
+
+  // Clean up fully consumed lots
+  data.lots = data.lots.filter((l) => l.remainingRaw > 0);
+}
+
+function recomputeSummaries(data: PnlData): void {
+  const map: Record<string, AssetPnlSummary> = {};
+
+  const ensure = (asset: string) => {
+    if (!map[asset]) {
+      map[asset] = {
+        asset,
+        totalCostBasis: 0,
+        weightedAvgPrice: 0,
+        currentHolding: 0,
+        realizedPnl: 0,
+        realizedTxCount: 0,
+        totalBought: 0,
+        totalSold: 0,
+        avgBuyPrice: 0,
+        avgSellPrice: 0,
+      };
+    }
+    return map[asset];
+  };
+
+  // Accumulate from lots (both remaining and consumed portions tracked via amountRaw)
+  let totalBoughtCost = 0;
+  let totalBoughtRaw = 0;
+  for (const lot of data.lots) {
+    const s = ensure(lot.asset);
+    s.totalCostBasis += (lot.remainingRaw / 1e8) * lot.pricePerUnit;
+    s.currentHolding += lot.remainingRaw;
+    totalBoughtCost += (lot.amountRaw / 1e8) * lot.pricePerUnit;
+    totalBoughtRaw += lot.amountRaw;
+  }
+
+  // Accumulate from realized events
+  let totalSoldProceeds = 0;
+  let totalSoldRaw = 0;
+  for (const evt of data.realizedEvents) {
+    const s = ensure(evt.asset);
+    s.realizedPnl += evt.pnl;
+    s.realizedTxCount += 1;
+    totalSoldProceeds += evt.proceeds;
+    totalSoldRaw += evt.amountRaw;
+    // Add the cost of sold lots back to total bought tracking
+    totalBoughtCost += evt.costBasis;
+    totalBoughtRaw += evt.amountRaw;
+  }
+
+  // Compute derived fields
+  for (const s of Object.values(map)) {
+    s.totalBought = totalBoughtRaw;
+    s.totalSold = totalSoldRaw;
+    if (s.currentHolding > 0) {
+      s.weightedAvgPrice = s.totalCostBasis / (s.currentHolding / 1e8);
+    }
+    if (totalBoughtRaw > 0) {
+      s.avgBuyPrice = totalBoughtCost / (totalBoughtRaw / 1e8);
+    }
+    if (totalSoldRaw > 0) {
+      s.avgSellPrice = totalSoldProceeds / (totalSoldRaw / 1e8);
+    }
+  }
+
+  data.summaries = map;
+}
+
+async function backfillPnlData(
+  address: string,
+  currency: string,
+): Promise<PnlData> {
+  const data: PnlData = { ...DEFAULT_PNL_DATA, address, currency, lots: [], realizedEvents: [], summaries: {} };
+
+  const networkConfig = getNetworkConfig(wallet.getNetwork());
+  const client = new KaspaClient(networkConfig);
+  const txs = await client.getTransactions(address, 200);
+
+  if (!txs.length) {
+    data.backfillComplete = true;
+    return data;
+  }
+
+  // Sort oldest first for FIFO
+  const sorted = [...txs].sort((a, b) => (a.time || 0) - (b.time || 0));
+
+  // Batch-fetch historical prices for all transaction dates
+  const timestamps = sorted
+    .map((tx) => tx.time)
+    .filter((t): t is number => t != null && t > 0);
+
+  const priceMap = await batchFetchHistoricalPrices(timestamps, currency);
+
+  // Process each transaction
+  for (const tx of sorted) {
+    const dayKey = tx.time
+      ? new Date(tx.time * 1000).toISOString().split("T")[0]
+      : null;
+    const price = dayKey ? priceMap.get(dayKey) ?? null : null;
+
+    if (price == null) continue; // Skip if no price data
+
+    if (tx.isOutgoing) {
+      processOutgoingTx(data, tx, price, currency);
+    } else {
+      processIncomingTx(data, tx, price, currency);
+    }
+
+    data.lastProcessedTxid = tx.txid;
+  }
+
+  recomputeSummaries(data);
+  data.backfillComplete = true;
+  return data;
+}
+
+async function incrementalPnlUpdate(
+  data: PnlData,
+  address: string,
+  currency: string,
+): Promise<boolean> {
+  const networkConfig = getNetworkConfig(wallet.getNetwork());
+  const client = new KaspaClient(networkConfig);
+  const txs = await client.getTransactions(address, 50);
+
+  // Find transactions not yet processed
+  const processedTxids = new Set([
+    ...data.lots.map((l) => l.txid),
+    ...data.realizedEvents.map((e) => e.txid),
+  ]);
+
+  const newTxs = txs
+    .filter((tx) => !processedTxids.has(tx.txid) && tx.status === "confirmed")
+    .sort((a, b) => (a.time || 0) - (b.time || 0));
+
+  if (!newTxs.length) return false;
+
+  // For recent txs use current price, for older use historical
+  const currentPrice = await getKaspaPrice(currency);
+
+  for (const tx of newTxs) {
+    const isRecent = tx.time && Date.now() / 1000 - tx.time < 86400;
+    let price: number;
+
+    if (isRecent) {
+      price = currentPrice.price;
+    } else {
+      // Fetch historical for this specific day
+      const dayPrices = await batchFetchHistoricalPrices(
+        [tx.time!],
+        currency,
+      );
+      const dayKey = new Date(tx.time! * 1000).toISOString().split("T")[0];
+      price = dayPrices.get(dayKey) ?? currentPrice.price;
+    }
+
+    if (tx.isOutgoing) {
+      processOutgoingTx(data, tx, price, currency);
+    } else {
+      processIncomingTx(data, tx, price, currency);
+    }
+
+    data.lastProcessedTxid = tx.txid;
+  }
+
+  recomputeSummaries(data);
+  return true;
+}
 
 /**
  * Main RPC handler for content scripts / UI.
@@ -405,6 +723,19 @@ browser.runtime.onMessage.addListener(
             }
             // Start auto-lock timer
             resetAutoLockTimer();
+            // Background PnL sync (non-blocking)
+            setTimeout(async () => {
+              try {
+                if (!pnlData.backfillComplete || pnlData.address !== account.address) {
+                  pnlData = await backfillPnlData(account.address, settings.currency);
+                } else {
+                  await incrementalPnlUpdate(pnlData, account.address, settings.currency);
+                }
+                await persistPnlData();
+              } catch (err) {
+                console.error("[pnl] Background sync failed:", err);
+              }
+            }, 3000);
             return { ok: true, account, isDuressMode: false };
           }
 
@@ -521,6 +852,21 @@ browser.runtime.onMessage.addListener(
             }
 
             const txid = await wallet.sendTransaction(to, amountSompi);
+            // Update PnL with this outgoing transaction
+            if (pnlData.backfillComplete && pnlData.address === wallet.getAccount()?.address) {
+              try {
+                const currentPrice = await getKaspaPrice(settings.currency);
+                processOutgoingTx(pnlData, {
+                  txid,
+                  amountSompi: Number(amountSompi),
+                  time: Math.floor(Date.now() / 1000),
+                }, currentPrice.price, settings.currency);
+                recomputeSummaries(pnlData);
+                await persistPnlData();
+              } catch (err) {
+                console.error("[pnl] Failed to update PnL after send:", err);
+              }
+            }
             return { ok: true, txid };
           }
 
@@ -1083,8 +1429,14 @@ browser.runtime.onMessage.addListener(
             const { currency } = message.payload || {};
             const valid = ["usd", "eur", "gbp", "jpy", "cad", "aud", "chf", "krw"];
             if (typeof currency === "string" && valid.includes(currency)) {
+              const oldCurrency = settings.currency;
               settings.currency = currency;
               await persistSettings();
+              // Invalidate PnL data when currency changes
+              if (oldCurrency !== currency && pnlData.backfillComplete) {
+                pnlData.backfillComplete = false;
+                await persistPnlData();
+              }
               return { ok: true, currency: settings.currency };
             }
             return { ok: false, error: "Invalid currency" };
@@ -1098,6 +1450,66 @@ browser.runtime.onMessage.addListener(
             const { apiKey } = message.payload || {};
             settings.kasFyiApiKey = typeof apiKey === "string" ? apiKey.trim() : "";
             await persistSettings();
+            return { ok: true };
+          }
+
+          // ==================== PNL TRACKING ====================
+
+          case "GET_PNL_SUMMARY": {
+            const account = wallet.getAccount();
+            if (!account) return { ok: false, error: "Wallet is locked", locked: true };
+
+            // If PnL data belongs to a different address, it's stale
+            if (pnlData.address && pnlData.address !== account.address) {
+              return { ok: true, summary: null, backfillComplete: false, currency: pnlData.currency };
+            }
+
+            return {
+              ok: true,
+              summary: pnlData.summaries["KAS"] || null,
+              backfillComplete: pnlData.backfillComplete,
+              totalRealizedPnl: pnlData.realizedEvents.reduce((sum, e) => sum + e.pnl, 0),
+              currency: pnlData.currency,
+            };
+          }
+
+          case "GET_PNL_DATA": {
+            const account = wallet.getAccount();
+            if (!account) return { ok: false, error: "Wallet is locked", locked: true };
+
+            return {
+              ok: true,
+              pnlData: {
+                summaries: pnlData.summaries,
+                realizedEvents: pnlData.realizedEvents.slice(-20),
+                backfillComplete: pnlData.backfillComplete,
+                currency: pnlData.currency,
+              },
+            };
+          }
+
+          case "SYNC_PNL": {
+            const account = wallet.getAccount();
+            if (!account) return { ok: false, error: "Wallet is locked", locked: true };
+
+            try {
+              if (!pnlData.backfillComplete || pnlData.address !== account.address) {
+                pnlData = await backfillPnlData(account.address, settings.currency);
+                await persistPnlData();
+                return { ok: true, backfilled: true };
+              } else {
+                const changed = await incrementalPnlUpdate(pnlData, account.address, settings.currency);
+                if (changed) await persistPnlData();
+                return { ok: true, updated: changed };
+              }
+            } catch (err: any) {
+              return { ok: false, error: err?.message || "PnL sync failed" };
+            }
+          }
+
+          case "RESET_PNL": {
+            pnlData = { ...DEFAULT_PNL_DATA, lots: [], realizedEvents: [], summaries: {} };
+            await persistPnlData();
             return { ok: true };
           }
 

@@ -386,3 +386,95 @@ export async function getTopKrc20TokensByGainers(
   all.sort((a, b) => b.change_24h - a.change_24h);
   return all.slice(0, limit);
 }
+
+// --- Historical price for PnL ---
+
+// In-memory cache for historical daily prices: "YYYY-MM-DD_currency" → price
+const historicalPriceCache = new Map<string, number>();
+
+/**
+ * Batch-fetch historical KAS prices for a list of unix-second timestamps.
+ * Groups by day, then batches into ~30-day ranges to minimize API calls.
+ * Returns a Map of "YYYY-MM-DD" → price in the given currency.
+ *
+ * Rate-limited: 2.5s delay between CoinGecko calls.
+ */
+export async function batchFetchHistoricalPrices(
+  timestamps: number[],
+  currency = "usd",
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (!timestamps.length) return result;
+
+  // Deduplicate to unique days
+  const daySet = new Set<string>();
+  for (const ts of timestamps) {
+    const day = new Date(ts * 1000).toISOString().split("T")[0];
+    daySet.add(day);
+  }
+
+  // Check cache first, collect uncached days
+  const uncachedDays: string[] = [];
+  for (const day of daySet) {
+    const cacheKey = `${day}_${currency}`;
+    const cached = historicalPriceCache.get(cacheKey);
+    if (cached != null) {
+      result.set(day, cached);
+    } else {
+      uncachedDays.push(day);
+    }
+  }
+
+  if (!uncachedDays.length) return result;
+
+  // Sort days chronologically
+  uncachedDays.sort();
+
+  // Batch into 30-day ranges (CoinGecko returns daily granularity for ranges > 90 days)
+  const BATCH_DAYS = 30;
+  const batches: { from: number; to: number }[] = [];
+
+  let i = 0;
+  while (i < uncachedDays.length) {
+    const batchStart = new Date(uncachedDays[i]).getTime() / 1000;
+    // Find end of this batch (up to BATCH_DAYS days or end of list)
+    let j = i;
+    while (
+      j < uncachedDays.length &&
+      (new Date(uncachedDays[j]).getTime() / 1000 - batchStart) < BATCH_DAYS * 86400
+    ) {
+      j++;
+    }
+    const batchEnd = new Date(uncachedDays[j - 1]).getTime() / 1000 + 86400; // +1 day buffer
+    batches.push({ from: batchStart, to: batchEnd });
+    i = j;
+  }
+
+  // Fetch each batch with rate limiting
+  for (let b = 0; b < batches.length; b++) {
+    if (b > 0) {
+      await new Promise((r) => setTimeout(r, 2500)); // Rate limit
+    }
+
+    try {
+      const data = await geckoGet(
+        `/coins/kaspa/market_chart/range?vs_currency=${currency}&from=${batches[b].from}&to=${batches[b].to}`,
+      );
+      const parsed = MarketChartSchema.safeParse(data);
+      if (!parsed.success) continue;
+
+      // Map each price point to its day
+      for (const [ts, price] of parsed.data.prices) {
+        const day = new Date(ts).toISOString().split("T")[0];
+        if (!result.has(day)) {
+          result.set(day, price);
+          historicalPriceCache.set(`${day}_${currency}`, price);
+        }
+      }
+    } catch (err) {
+      console.warn(`[price] Historical batch fetch failed for range ${batches[b].from}-${batches[b].to}:`, err);
+    }
+  }
+
+  return result;
+}

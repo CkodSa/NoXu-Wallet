@@ -33,7 +33,8 @@ type MainPage =
   | "activity"
   | "settings"
   | "token"
-  | "watchdetail";
+  | "watchdetail"
+  | "pnl";
 
 async function rpc(type: string, payload?: any) {
   try {
@@ -761,6 +762,12 @@ function InnerApp() {
   const [currency, setCurrency] = useState("usd");
   const [showCurrencyDropdown, setShowCurrencyDropdown] = useState(false);
 
+  // PnL state
+  const [pnlSummary, setPnlSummary] = useState<any>(null);
+  const [pnlEvents, setPnlEvents] = useState<any[]>([]);
+  const [pnlBackfillComplete, setPnlBackfillComplete] = useState(false);
+  const [pnlSyncing, setPnlSyncing] = useState(false);
+
   // Trending/popular tokens state
   const [trendingTokens, setTrendingTokens] = useState<any[]>([]);
   const [trendingGainers, setTrendingGainers] = useState<any[]>([]);
@@ -909,6 +916,34 @@ function InnerApp() {
     }
   }, []);
 
+  // PnL data loading
+  const loadPnlSummary = useCallback(async () => {
+    const res = await rpc("GET_PNL_SUMMARY");
+    if (res?.ok) {
+      setPnlSummary(res.summary);
+      setPnlBackfillComplete(res.backfillComplete);
+    }
+  }, []);
+
+  const syncPnl = useCallback(async () => {
+    setPnlSyncing(true);
+    try {
+      await rpc("SYNC_PNL");
+      await loadPnlSummary();
+    } finally {
+      setPnlSyncing(false);
+    }
+  }, [loadPnlSummary]);
+
+  const loadPnlDetail = useCallback(async () => {
+    const res = await rpc("GET_PNL_DATA");
+    if (res?.ok) {
+      setPnlSummary(res.pnlData.summaries?.["KAS"] || null);
+      setPnlEvents(res.pnlData.realizedEvents || []);
+      setPnlBackfillComplete(res.pnlData.backfillComplete);
+    }
+  }, []);
+
   // Load watch-only balances
   const loadWatchOnlyBalances = useCallback(async () => {
     if (!securityFeatures?.watchOnlyAddresses?.length) return;
@@ -931,8 +966,10 @@ function InnerApp() {
       loadSecurityFeatures();
       loadPendingTransactions();
       loadAddressBook();
+      loadPnlSummary();
+      syncPnl();
     }
-  }, [account, loadSecurityFeatures, loadPendingTransactions, loadAddressBook]);
+  }, [account, loadSecurityFeatures, loadPendingTransactions, loadAddressBook, loadPnlSummary, syncPnl]);
 
   useEffect(() => {
     if (securityFeatures?.watchOnlyAddresses?.length) {
@@ -1587,6 +1624,11 @@ function InnerApp() {
   const homeFiatBalance =
     kasPrice != null && balance != null ? (balance / 1e8) * kasPrice : null;
 
+  // Compute 24h PNL based on price change
+  const pnl24h = homeFiatBalance != null
+    ? homeFiatBalance * (kasPriceChange / (100 + kasPriceChange || 1))
+    : null;
+
   const HomeCard = (
     <div className="card home-card">
       <div className="row space-between">
@@ -1630,6 +1672,51 @@ function InnerApp() {
             {homeFiatBalance != null && balance !== undefined && (
               <div className="muted small" style={{ marginTop: 2 }}>
                 {(balance / 1e8).toFixed(4)} KAS
+              </div>
+            )}
+            {/* PnL display */}
+            {homeFiatBalance != null && (
+              <div
+                className="pnl-summary-row"
+                onClick={() => { loadPnlDetail(); setMainPage("pnl"); }}
+                style={{ cursor: "pointer" }}
+              >
+                {pnlSummary && pnlBackfillComplete ? (() => {
+                  const costBasis = pnlSummary.totalCostBasis || 0;
+                  const unrealizedPnl = homeFiatBalance - costBasis;
+                  const realizedPnl = pnlSummary.realizedPnl || 0;
+                  const totalPnl = unrealizedPnl + realizedPnl;
+                  const totalPct = costBasis > 0 ? (totalPnl / costBasis) * 100 : 0;
+                  const isUp = totalPnl >= 0;
+                  return (
+                    <div className={`pnl-row ${isUp ? "up" : "down"}`}>
+                      <span className="pnl-label">PnL</span>
+                      <span className="pnl-value">
+                        {isUp ? "+" : "-"}{currencySymbol}{Math.abs(totalPnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                      <span className="pnl-percent">
+                        {totalPct >= 0 ? "+" : ""}{totalPct.toFixed(1)}%
+                      </span>
+                      {kasPriceChange !== 0 && (
+                        <span className={`pnl-24h-badge ${kasPriceChange >= 0 ? "up" : "down"}`}>
+                          24h {kasPriceChange >= 0 ? "+" : ""}{kasPriceChange.toFixed(1)}%
+                        </span>
+                      )}
+                      <span className="pnl-expand-hint">›</span>
+                    </div>
+                  );
+                })() : pnl24h != null ? (
+                  <div className={`pnl-row ${kasPriceChange >= 0 ? "up" : "down"}`}>
+                    <span className="pnl-label">24h PnL</span>
+                    <span className="pnl-value">
+                      {kasPriceChange >= 0 ? "+" : ""}{currencySymbol}{Math.abs(pnl24h).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <span className="pnl-percent">
+                      {kasPriceChange >= 0 ? "+" : ""}{kasPriceChange.toFixed(2)}%
+                    </span>
+                    {pnlSyncing && <span className="pnl-syncing">syncing...</span>}
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -3211,6 +3298,148 @@ function InnerApp() {
   const activePopularList = popularTab === "popular" ? popularTokensFiltered : trendingGainersFiltered;
   const hasAnyPopular = popularTokensFiltered.length > 0 || trendingGainersFiltered.length > 0;
 
+  // --- PnL Detail Page ---
+  const pnlCurrentValue = homeFiatBalance || 0;
+  const pnlCostBasis = pnlSummary?.totalCostBasis || 0;
+  const pnlUnrealized = pnlCurrentValue - pnlCostBasis;
+  const pnlRealized = pnlSummary?.realizedPnl || 0;
+  const pnlTotal = pnlUnrealized + pnlRealized;
+  const pnlTotalPct = pnlCostBasis > 0 ? (pnlTotal / pnlCostBasis) * 100 : 0;
+  const pnlUnrealizedPct = pnlCostBasis > 0 ? (pnlUnrealized / pnlCostBasis) * 100 : 0;
+
+  const PnlDetailCard = !pnlBackfillComplete ? (
+    <div className="card" style={{ textAlign: "center", padding: 24 }}>
+      <div className="pnl-syncing-indicator">
+        <span className="spinning"><RefreshIcon /></span>
+      </div>
+      <div className="muted" style={{ marginTop: 8 }}>Analyzing transaction history...</div>
+      <div className="muted small" style={{ marginTop: 4 }}>This may take a moment on first use</div>
+    </div>
+  ) : (
+    <div style={{ display: "grid", gap: 10 }}>
+      {/* Summary Card */}
+      <div className="card pnl-detail-card">
+        <div className="pnl-detail-header">Portfolio Performance</div>
+        <div className="pnl-detail-row">
+          <span className="pnl-detail-label">Holdings Value</span>
+          <span className="pnl-detail-value">{formatFiat(pnlCurrentValue)}</span>
+        </div>
+        <div className="pnl-detail-row">
+          <span className="pnl-detail-label">Cost Basis</span>
+          <span className="pnl-detail-value" style={{ color: "var(--muted)" }}>{formatFiat(pnlCostBasis)}</span>
+        </div>
+        <div className="pnl-detail-divider" />
+        <div className="pnl-detail-row">
+          <span className="pnl-detail-label">Unrealised PnL</span>
+          <span className={`pnl-detail-value ${pnlUnrealized >= 0 ? "pnl-up" : "pnl-down"}`}>
+            {pnlUnrealized >= 0 ? "+" : "-"}{formatFiat(Math.abs(pnlUnrealized))}
+            <span className="pnl-detail-pct"> ({pnlUnrealizedPct >= 0 ? "+" : ""}{pnlUnrealizedPct.toFixed(1)}%)</span>
+          </span>
+        </div>
+        <div className="pnl-detail-row">
+          <span className="pnl-detail-label">Realised PnL</span>
+          <span className={`pnl-detail-value ${pnlRealized >= 0 ? "pnl-up" : "pnl-down"}`}>
+            {pnlRealized >= 0 ? "+" : "-"}{formatFiat(Math.abs(pnlRealized))}
+          </span>
+        </div>
+        <div className="pnl-detail-divider" />
+        <div className="pnl-detail-row pnl-total-row">
+          <span className="pnl-detail-label">Total PnL</span>
+          <span className={`pnl-detail-total ${pnlTotal >= 0 ? "pnl-up" : "pnl-down"}`}>
+            {pnlTotal >= 0 ? "+" : "-"}{formatFiat(Math.abs(pnlTotal))}
+            <span className="pnl-detail-pct"> ({pnlTotalPct >= 0 ? "+" : ""}{pnlTotalPct.toFixed(1)}%)</span>
+          </span>
+        </div>
+      </div>
+
+      {/* Analysis Card */}
+      <div className="card">
+        <div className="pnl-detail-header">Analysis</div>
+        <div className="pnl-stats-grid">
+          <div className="pnl-stat">
+            <div className="pnl-stat-label">Avg Buy Price</div>
+            <div className="pnl-stat-value">{pnlSummary?.avgBuyPrice ? formatPrice(pnlSummary.avgBuyPrice) : "N/A"}</div>
+          </div>
+          <div className="pnl-stat">
+            <div className="pnl-stat-label">Avg Sell Price</div>
+            <div className="pnl-stat-value">{pnlSummary?.avgSellPrice ? formatPrice(pnlSummary.avgSellPrice) : "N/A"}</div>
+          </div>
+          <div className="pnl-stat">
+            <div className="pnl-stat-label">Total Bought</div>
+            <div className="pnl-stat-value">{pnlSummary?.totalBought ? `${(pnlSummary.totalBought / 1e8).toLocaleString(undefined, { maximumFractionDigits: 2 })} KAS` : "0 KAS"}</div>
+          </div>
+          <div className="pnl-stat">
+            <div className="pnl-stat-label">Total Sold</div>
+            <div className="pnl-stat-value">{pnlSummary?.totalSold ? `${(pnlSummary.totalSold / 1e8).toLocaleString(undefined, { maximumFractionDigits: 2 })} KAS` : "0 KAS"}</div>
+          </div>
+          <div className="pnl-stat">
+            <div className="pnl-stat-label">Trades</div>
+            <div className="pnl-stat-value">{pnlSummary?.realizedTxCount || 0}</div>
+          </div>
+          <div className="pnl-stat">
+            <div className="pnl-stat-label">Win Rate</div>
+            <div className="pnl-stat-value">
+              {pnlEvents.length > 0
+                ? `${((pnlEvents.filter((e: any) => e.pnl >= 0).length / pnlEvents.length) * 100).toFixed(0)}%`
+                : "N/A"}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Trades Card */}
+      <div className="card">
+        <div className="pnl-detail-header">Recent Trades</div>
+        <div className="activity-list">
+          {pnlEvents.length > 0 ? (
+            [...pnlEvents].reverse().slice(0, 15).map((evt: any, idx: number) => (
+              <div key={idx} className="activity-item">
+                <div className="row space-between">
+                  <span className="tx-outgoing">-{(evt.amountRaw / 1e8).toFixed(4)} KAS</span>
+                  <span className={`pnl-trade-badge ${evt.pnl >= 0 ? "up" : "down"}`}>
+                    {evt.pnl >= 0 ? "+" : "-"}{currencySymbol}{Math.abs(evt.pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="muted small">
+                  Cost: {formatFiat(evt.costBasis)} → Sold: {formatFiat(evt.proceeds)}
+                </div>
+                {evt.timestamp && (
+                  <div className="muted small" style={{ fontSize: 9, opacity: 0.7 }}>
+                    {new Date(evt.timestamp * 1000).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="muted small" style={{ textAlign: "center", padding: 12 }}>
+              No realised trades yet
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="row space-between" style={{ padding: "0 4px" }}>
+        <button className="secondary-btn pill" onClick={syncPnl} disabled={pnlSyncing}>
+          {pnlSyncing ? "Syncing..." : "Refresh"}
+        </button>
+        <button
+          className="secondary-btn pill"
+          style={{ opacity: 0.6 }}
+          onClick={async () => {
+            await rpc("RESET_PNL");
+            setPnlSummary(null);
+            setPnlEvents([]);
+            setPnlBackfillComplete(false);
+            syncPnl();
+          }}
+        >
+          Reset Data
+        </button>
+      </div>
+    </div>
+  );
+
   const PopularTokensCard = network === "mainnet" && hasAnyPopular && (
     <div className="card">
       <div className="row space-between" style={{ marginBottom: 8 }}>
@@ -3346,6 +3575,9 @@ function InnerApp() {
         )}
         {mainPage === "activity" && (
           <ScreenLayout title="Activity" onBack={() => setMainPage("home")}>{ActivityList}</ScreenLayout>
+        )}
+        {mainPage === "pnl" && (
+          <ScreenLayout title="Profit & Loss" onBack={() => setMainPage("home")}>{PnlDetailCard}</ScreenLayout>
         )}
         {mainPage === "settings" && (
           <ScreenLayout title="Settings" onBack={() => setMainPage("home")}>{SettingsCard}</ScreenLayout>

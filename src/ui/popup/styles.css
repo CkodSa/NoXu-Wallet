@@ -189,6 +189,199 @@ body {
   color: var(--text);
 }
 
+/* 24h PNL row */
+.pnl-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.pnl-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.pnl-value {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pnl-percent {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+
+.pnl-row.up .pnl-value {
+  color: #34d399;
+}
+
+.pnl-row.up .pnl-percent {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.12);
+}
+
+.pnl-row.down .pnl-value {
+  color: var(--danger);
+}
+
+.pnl-row.down .pnl-percent {
+  color: var(--danger);
+  background: rgba(249, 115, 115, 0.12);
+}
+
+/* ---------- PnL Enhanced Home Row ---------- */
+
+.pnl-summary-row {
+  margin-top: 6px;
+}
+
+.pnl-24h-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 2px;
+}
+
+.pnl-24h-badge.up {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.1);
+}
+
+.pnl-24h-badge.down {
+  color: var(--danger);
+  background: rgba(249, 115, 115, 0.1);
+}
+
+.pnl-expand-hint {
+  font-size: 14px;
+  color: var(--muted);
+  margin-left: auto;
+  padding-left: 4px;
+}
+
+.pnl-syncing {
+  font-size: 10px;
+  color: var(--muted);
+  font-style: italic;
+  margin-left: 4px;
+}
+
+/* ---------- PnL Detail Page ---------- */
+
+.pnl-detail-card {
+  padding: 16px;
+}
+
+.pnl-detail-header {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.pnl-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+}
+
+.pnl-detail-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pnl-detail-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pnl-detail-pct {
+  font-size: 11px;
+  margin-left: 4px;
+  font-weight: 500;
+}
+
+.pnl-up {
+  color: #34d399;
+}
+
+.pnl-down {
+  color: var(--danger);
+}
+
+.pnl-detail-divider {
+  height: 1px;
+  background: rgba(148, 163, 184, 0.15);
+  margin: 4px 0;
+}
+
+.pnl-total-row {
+  padding-top: 8px;
+}
+
+.pnl-detail-total {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* Analysis stats grid */
+.pnl-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.pnl-stat {
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(7, 10, 12, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.pnl-stat-label {
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.pnl-stat-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Trade PnL badge */
+.pnl-trade-badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.pnl-trade-badge.up {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.12);
+}
+
+.pnl-trade-badge.down {
+  color: var(--danger);
+  background: rgba(249, 115, 115, 0.12);
+}
+
+/* Syncing indicator */
+.pnl-syncing-indicator {
+  display: flex;
+  justify-content: center;
+  color: var(--accent);
+}
+
 .muted {
   color: var(--muted);
 }

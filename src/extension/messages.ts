@@ -56,6 +56,11 @@ export type MessageType =
   // API key settings
   | "GET_KAS_FYI_API_KEY"
   | "SET_KAS_FYI_API_KEY"
+  // PnL Tracking
+  | "GET_PNL_SUMMARY"
+  | "GET_PNL_DATA"
+  | "SYNC_PNL"
+  | "RESET_PNL"
   // Popup keepalive
   | "POPUP_PING";
 
