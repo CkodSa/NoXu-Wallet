@@ -3,7 +3,7 @@
 A security-first, non-custodial browser extension wallet for the Kaspa blockchain.
 
 <p align="center">
-  <img src="src/ui/assets/NoxuLogoAnimation.gif" alt="NoXu Wallet" width="200" />
+  <img src="packages/extension/src/ui/assets/NoxuLogoAnimation.gif" alt="NoXu Wallet" width="200" />
 </p>
 
 ## Overview
@@ -80,6 +80,7 @@ NoXu Wallet enables users to securely manage their KAS holdings with industry-le
 - **Time-Delayed Transactions** - Large transactions are automatically queued with a configurable delay period. Cancel within the window if compromised. Protects against hacks, scams, and impulsive decisions.
 
 ### Portfolio Tools
+- **PnL Tracking** - FIFO cost-basis engine with per-token profit/loss, unrealized gains, and portfolio analysis stats. Historical price sync via CryptoCompare.
 - **Watch-Only Tracking** - Monitor any Kaspa address without importing keys. Perfect for tracking whale wallets, cold storage, or friends' addresses. View balances and full transaction history.
 - **Address Book** - Save and manage frequently used addresses with custom labels and notes.
 
@@ -92,47 +93,60 @@ NoXu Wallet enables users to securely manage their KAS holdings with industry-le
 
 ## Architecture
 
+Monorepo with NPM workspaces (`packages/*`):
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  UI Layer (React 18 + Zustand)                              │
-│  └── Popup Interface, Settings, State Management            │
-├─────────────────────────────────────────────────────────────┤
-│  Extension Layer (Chrome MV3 / Firefox MV3)                 │
-│  └── Background Service Worker, Content Script, RPC         │
-├─────────────────────────────────────────────────────────────┤
-│  Core Layer (Framework-Agnostic)                            │
-│  └── Wallet, Crypto (Argon2id/AES), Mnemonic, Kaspa Client  │
-├─────────────────────────────────────────────────────────────┤
-│  Kaspa Network (api.kaspa.org / Custom RPC)                 │
-└─────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│  UI Layer (React 18 + Zustand)                                │
+│  ├── Extension: Popup, Options, Content Script                │
+│  └── Mobile: React Native (Expo) with native auth            │
+├───────────────────────────────────────────────────────────────┤
+│  Platform Layer                                               │
+│  ├── Extension: Chrome MV3 / Firefox MV3 Service Worker       │
+│  └── Mobile: Expo + React Native Quick Crypto                 │
+├───────────────────────────────────────────────────────────────┤
+│  Core Layer (Framework-Agnostic — @noxu/core)                 │
+│  └── Wallet, Crypto (Argon2id/AES), Mnemonic, Kaspa Client   │
+├───────────────────────────────────────────────────────────────┤
+│  Kaspa Network (api.kaspa.org / Custom RPC)                   │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ## Project Structure
 
 ```
-src/
-├── core/                    # UI-agnostic business logic
-│   ├── wallet.ts            # Wallet state management
-│   ├── networks.ts          # Network configuration
-│   ├── tokens/              # Token metadata and resolution
-│   ├── securityFeatures.ts  # Duress mode, watch-only, time-delay logic
+packages/
+├── core/src/                    # Shared, UI-agnostic business logic
+│   ├── wallet.ts                # Wallet state management
+│   ├── networks.ts              # Network configuration
+│   ├── tokens/                  # Token metadata and resolution
+│   ├── securityFeatures.ts      # Duress mode, watch-only, time-delay logic
 │   ├── crypto/
-│   │   ├── mnemonic.ts      # BIP39/BIP44 key derivation
-│   │   ├── encryption.ts    # Argon2id + AES-256-GCM
-│   │   └── secure.ts        # Memory wiping utilities
+│   │   ├── mnemonic.ts          # BIP39/BIP44 key derivation
+│   │   ├── encryption.ts        # Argon2id + AES-256-GCM
+│   │   └── secure.ts            # Memory wiping utilities
 │   └── kaspa/
-│       ├── client.ts        # REST API client with Zod validation
-│       └── krc20-client.ts  # KRC-20 token client (Kasplex API)
-├── extension/               # Browser extension
-│   ├── background/          # Service worker with security features
-│   ├── contentScript/       # dApp bridge (IIFE bundled)
-│   ├── manifest.chrome.json # Chrome manifest
-│   └── manifest.firefox.json # Firefox manifest
-├── ui/                      # React UI
-│   ├── popup/               # Main wallet interface with security UI
-│   ├── options/             # Settings page
-│   └── store.ts             # Zustand state store
-└── legal/                   # Terms, privacy, support docs
+│       ├── client.ts            # REST API client with Zod validation
+│       ├── transaction.ts       # Kaspa transaction building & Schnorr signing
+│       ├── krc20-client.ts      # KRC-20 token client (Kasplex API)
+│       ├── krc20-transaction.ts # KRC-20 inscription transactions
+│       └── price-client.ts      # Price data (CryptoCompare, Kas.fyi)
+├── extension/src/               # Browser extension
+│   ├── extension/
+│   │   ├── background/          # Service worker with security features
+│   │   ├── contentScript/       # dApp bridge (IIFE bundled)
+│   │   ├── manifest.chrome.json # Chrome manifest
+│   │   └── manifest.firefox.json # Firefox manifest
+│   ├── ui/
+│   │   ├── popup/               # Main wallet interface
+│   │   ├── options/             # Settings page
+│   │   └── store.ts             # Zustand state store
+│   └── platform/                # Browser crypto provider
+└── mobile/src/                  # React Native mobile app (Expo)
+    ├── screens/                 # Auth, onboarding, main, detail screens
+    ├── navigation/              # React Navigation stack & tabs
+    ├── store/                   # Zustand state store
+    └── platform/                # Native crypto & storage providers
 ```
 
 ## Tech Stack
@@ -213,7 +227,7 @@ npm run build:firefox
 
 ## Security
 
-NoXu Wallet is built with security as the primary concern. See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for our comprehensive security review covering:
+NoXu Wallet is built with security as the primary concern. See [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md) for our comprehensive security review covering:
 
 - Memory dump attack mitigations
 - Console/DevTools extraction protection
@@ -260,8 +274,9 @@ NoXu Wallet is built with security as the primary concern. See [SECURITY_AUDIT.m
 - [x] KRC-20 token transfers
 - [x] Multi-currency fiat support (USD, EUR, GBP, JPY, CAD, AUD, CHF, KRW)
 - [x] Popular & trending KRC-20 tokens dashboard
+- [x] PnL tracking with FIFO cost-basis engine
+- [x] Mobile companion app (React Native / Expo)
 - [ ] Hardware wallet integration (Ledger)
-- [ ] Mobile companion app
 - [ ] Third-party security audit
 
 ## Contributing
