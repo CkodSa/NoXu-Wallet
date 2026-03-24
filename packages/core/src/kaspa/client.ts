@@ -76,6 +76,7 @@ const BroadcastResponseSchema = z.object({
 
 const RETRIES = 2;
 const BACKOFF_MS = 400;
+const FETCH_TIMEOUT_MS = 15_000; // 15s timeout for API calls
 
 export class KaspaClient {
   constructor(private readonly network: NetworkConfig) {}
@@ -87,10 +88,14 @@ export class KaspaClient {
 
     while (attempt <= RETRIES) {
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
         const res = await fetch(`${baseUrl}${endpoint}`, {
           method: "GET",
           headers: { Accept: "application/json" },
+          signal: controller.signal,
         });
+        clearTimeout(timeout);
         if (!res.ok) {
           throw new Error(`REST HTTP ${res.status}: ${res.statusText}`);
         }
@@ -117,6 +122,8 @@ export class KaspaClient {
 
     while (attempt <= RETRIES) {
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
         const res = await fetch(`${baseUrl}${endpoint}`, {
           method: "POST",
           headers: {
@@ -124,7 +131,9 @@ export class KaspaClient {
             Accept: "application/json",
           },
           body: JSON.stringify(body),
+          signal: controller.signal,
         });
+        clearTimeout(timeout);
         if (!res.ok) {
           const errorText = await res.text().catch(() => res.statusText);
           throw new Error(`REST HTTP ${res.status}: ${errorText}`);

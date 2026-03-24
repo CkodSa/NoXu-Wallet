@@ -221,7 +221,7 @@ export default function HomeScreen({ navigation }: Props) {
     }
     await Promise.all(promises);
     setRefreshing(false);
-  }, [network]);
+  }, [network, refreshBalance, refreshHistory, setKasPrice]);
 
   const address = account?.address || "";
 

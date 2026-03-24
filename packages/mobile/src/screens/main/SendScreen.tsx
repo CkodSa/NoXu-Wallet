@@ -112,7 +112,12 @@ export default function SendScreen({ route }: Props) {
     setLoading(true);
     try {
       if (isKas) {
-        const sompi = BigInt(Math.round(parseFloat(amount) * 1e8));
+        // Parse amount string to sompi without floating point — split on
+        // decimal to avoid precision loss (e.g. 0.12345678 * 1e8 != 12345678)
+        const parts = amount.split(".");
+        const whole = BigInt(parts[0] || "0") * 100_000_000n;
+        const fracStr = (parts[1] || "").padEnd(8, "0").slice(0, 8);
+        const sompi = whole + BigInt(fracStr);
         await sendTransaction(recipient, sompi);
         Alert.alert("Success", "Transaction sent!");
         setAmount("");

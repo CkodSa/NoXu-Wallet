@@ -20,6 +20,7 @@ import {
   addressToScriptPublicKey,
   createSignatureScript,
   SIGHASH_ALL,
+  DUST_LIMIT,
 } from "./transaction";
 
 // ============================================================================
@@ -285,6 +286,17 @@ export function buildKRC20CommitTransaction(
 } {
   const commitOutputAmount = options.commitOutputAmount ?? DEFAULT_COMMIT_OUTPUT_AMOUNT;
 
+  // Validate commit output covers reveal fee
+  if (commitOutputAmount <= 0n) {
+    throw new Error("Commit output amount must be greater than zero");
+  }
+  const estimatedRevealFee = calculateFee(1, 1, options);
+  if (commitOutputAmount <= estimatedRevealFee) {
+    throw new Error(
+      `Commit output (${commitOutputAmount}) must exceed reveal fee (${estimatedRevealFee}). Increase commitOutputAmount.`
+    );
+  }
+
   // Create the inscription data
   const inscriptionData = serializeInscription(inscription);
 
@@ -310,8 +322,8 @@ export function buildKRC20CommitTransaction(
     },
   ];
 
-  // Add change output if non-zero
-  if (change > 0n) {
+  // Add change output if above dust limit
+  if (change >= DUST_LIMIT) {
     outputs.push({
       value: change,
       scriptPublicKey: addressToScriptPublicKey(changeAddress),

@@ -764,6 +764,7 @@ browser.runtime.onMessage.addListener(
                   console.error("[pnl] Background sync failed:", err);
                 }
               }, 3000);
+              startDelayedTxChecker(); // Restart timer after unlock
               return { ok: true, account, isDuressMode: false };
             } catch (unlockErr) {
               unlockAttempts++;
@@ -778,13 +779,23 @@ browser.runtime.onMessage.addListener(
 
           case "LOCK": {
             wallet.lock();
+            // Stop delayed transaction checker while locked
+            if (delayedTxTimer) {
+              clearInterval(delayedTxTimer);
+              delayedTxTimer = null;
+            }
             return { ok: true };
           }
 
           case "SWITCH_NETWORK": {
             wallet.switchNetwork(message.payload.network);
             await persistWallet();
-            return { ok: true, network: wallet.getNetwork() };
+            // Signal UI to clear stale balance/history from previous network
+            return {
+              ok: true,
+              network: wallet.getNetwork(),
+              clearState: true,
+            };
           }
 
           case "SET_CUSTOM_RPC": {

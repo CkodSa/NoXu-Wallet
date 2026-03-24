@@ -1,6 +1,10 @@
 // src/core/kaspa/transaction.ts
 // Kaspa transaction building and Schnorr signing implementation
 
+// Minimum output value — outputs below this are considered dust and may be
+// rejected by the network or create unspendable UTXOs.
+export const DUST_LIMIT = 546n; // sompi
+
 import { blake2b } from "@noble/hashes/blake2b";
 import { schnorr, secp256k1 } from "@noble/curves/secp256k1";
 import type { KaspaUTXO } from "./client";
@@ -275,6 +279,34 @@ function fromWords(words: number[]): Uint8Array {
 }
 
 /**
+ * Bech32 polymod checksum for Kaspa addresses (CashAddr-style)
+ */
+function polymod(values: number[]): bigint {
+  const GENERATORS = [
+    0x98f2bc8e61n, 0x79b76d99e2n, 0xf33e5fb3c4n,
+    0xae2eabe2a8n, 0x1e4f43e470n,
+  ];
+  let chk = 1n;
+  for (const v of values) {
+    const b = chk >> 35n;
+    chk = ((chk & 0x07ffffffffn) << 5n) ^ BigInt(v);
+    for (let i = 0; i < 5; i++) {
+      if ((b >> BigInt(i)) & 1n) chk ^= GENERATORS[i];
+    }
+  }
+  return chk ^ 1n;
+}
+
+/**
+ * Verify the bech32 checksum of a Kaspa address
+ */
+function verifyChecksum(prefix: string, data: number[]): boolean {
+  const prefixData = [...prefix].map((c) => c.charCodeAt(0) & 0x1f);
+  prefixData.push(0); // separator
+  return polymod([...prefixData, ...data]) === 0n;
+}
+
+/**
  * Decode a Kaspa address to get the public key hash/script
  * Returns the type byte and payload
  */
@@ -282,15 +314,26 @@ export function decodeKaspaAddress(address: string): { type: number; payload: Ui
   const colonIdx = address.indexOf(":");
   if (colonIdx === -1) throw new Error("Invalid Kaspa address: missing separator");
 
+  const prefix = address.slice(0, colonIdx);
   const data = address.slice(colonIdx + 1);
 
-  // Decode bech32 characters to 5-bit words (excluding 8-char checksum)
-  const words: number[] = [];
-  for (let i = 0; i < data.length - 8; i++) {
+  if (data.length < 9) throw new Error("Invalid Kaspa address: too short");
+
+  // Decode ALL bech32 characters to 5-bit words (including checksum)
+  const allWords: number[] = [];
+  for (let i = 0; i < data.length; i++) {
     const val = CHARSET_MAP.get(data[i]);
     if (val === undefined) throw new Error(`Invalid character in address: ${data[i]}`);
-    words.push(val);
+    allWords.push(val);
   }
+
+  // Verify checksum
+  if (!verifyChecksum(prefix, allWords)) {
+    throw new Error("Invalid Kaspa address: checksum verification failed");
+  }
+
+  // Exclude 8-char checksum for payload
+  const words = allWords.slice(0, -8);
 
   // Convert to bytes
   const payload = fromWords(words);
@@ -658,13 +701,15 @@ export function buildTransaction(
     },
   ];
 
-  // Add change output if non-zero
-  if (change > 0n) {
+  // Add change output if above dust limit — dust outputs are uneconomical
+  // to spend and may be rejected by the network
+  if (change >= DUST_LIMIT) {
     outputs.push({
       value: change,
       scriptPublicKey: addressToScriptPublicKey(changeAddress),
     });
   }
+  // If change < DUST_LIMIT, it's absorbed into the fee (miner tip)
 
   const inputs: TransactionInput[] = selected.map((utxo) => ({
     previousOutpoint: {

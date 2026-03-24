@@ -2764,6 +2764,10 @@ function InnerApp() {
   const handleNetworkSwitch = async (newNetwork: KaspaNetwork) => {
     await rpc("SWITCH_NETWORK", { network: newNetwork });
     setNetwork(newNetwork);
+    // Clear stale data from previous network
+    setBalance(0);
+    setTokenBalances([]);
+    setHistory([]);
     showSaveSuccess(`Switched to ${newNetwork}`);
   };
 

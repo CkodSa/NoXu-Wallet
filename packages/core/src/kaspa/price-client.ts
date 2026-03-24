@@ -106,6 +106,11 @@ async function fetchJSON(url: string): Promise<any> {
       throw new Error(`HTTP ${res.status}: ${res.statusText} for ${url}`);
     }
     return await res.json();
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error(`Request timed out after ${FETCH_TIMEOUT_MS}ms: ${url}`);
+    }
+    throw err;
   } finally {
     clearTimeout(timeout);
   }
