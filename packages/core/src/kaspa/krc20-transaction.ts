@@ -4,6 +4,7 @@
 import { blake2b } from "@noble/hashes/blake2b";
 import { schnorr } from "@noble/curves/secp256k1";
 import type { KaspaUTXO } from "./client";
+import type { TransactionSigner } from "./signer";
 import {
   type Transaction,
   type TransactionInput,
@@ -604,4 +605,128 @@ export function estimateKRC20TransferCost(
 
   // Total: commit fee + commit output (which pays for reveal fee + recipient output)
   return commitFee + commitOutputAmount;
+}
+
+// ============================================================================
+// Async Signer Variants (for hardware wallets)
+// ============================================================================
+
+/**
+ * Sign the commit transaction using a TransactionSigner (async)
+ */
+export async function signCommitTransactionWithSigner(
+  tx: Transaction,
+  signer: TransactionSigner,
+  utxos: KaspaUTXO[]
+): Promise<Transaction> {
+  const utxoInfos = utxos.map((utxo) => ({
+    value: utxo.amountSompi,
+    scriptPublicKey: {
+      version: 0,
+      script: utxo.scriptPublicKey,
+    },
+  }));
+
+  const signedInputs = [];
+  for (let i = 0; i < tx.inputs.length; i++) {
+    const sighash = calculateSighash(tx, i, utxoInfos[i], SIGHASH_ALL);
+    const signature = await signer.sign(sighash);
+    signedInputs.push({
+      ...tx.inputs[i],
+      signatureScript: createSignatureScript(signature),
+    });
+  }
+
+  return { ...tx, inputs: signedInputs };
+}
+
+/**
+ * Sign the reveal transaction using a TransactionSigner (async)
+ */
+export async function signRevealTransactionWithSigner(
+  tx: Transaction,
+  signer: TransactionSigner,
+  redeemScript: Uint8Array,
+  p2shUtxo: { value: bigint; scriptPublicKey: ScriptPublicKey }
+): Promise<Transaction> {
+  const xOnlyPubkey = redeemScript.slice(1, 33);
+
+  const signingScriptPubKey: ScriptPublicKey = {
+    version: 0,
+    script: bytesToHex(concat(
+      new Uint8Array([OP_DATA_32]),
+      xOnlyPubkey,
+      new Uint8Array([OP_CHECKSIG])
+    )),
+  };
+
+  const sighash = calculateSighash(
+    tx,
+    0,
+    { value: p2shUtxo.value, scriptPublicKey: signingScriptPubKey },
+    SIGHASH_ALL
+  );
+
+  const signature = await signer.sign(sighash);
+  const signatureScript = createP2SHSignatureScript(signature, redeemScript);
+
+  return {
+    ...tx,
+    inputs: [{ ...tx.inputs[0], signatureScript }],
+  };
+}
+
+/**
+ * Build and sign both commit and reveal transactions using a TransactionSigner (async)
+ */
+export async function createKRC20TransferWithSigner(
+  utxos: KaspaUTXO[],
+  signer: TransactionSigner,
+  tick: string,
+  amount: bigint,
+  toAddress: string,
+  changeAddress: string,
+  options: KRC20TransferOptions = {}
+): Promise<KRC20TransferResult> {
+  const inscription = createKRC20TransferInscription(tick, amount, toAddress);
+
+  // Use full public key (with prefix) for inscription script
+  const publicKey = signer.publicKey.length === 32
+    ? new Uint8Array([0x02, ...signer.publicKey])
+    : signer.publicKey;
+
+  const {
+    tx: unsignedCommitTx,
+    selectedUtxos,
+    redeemScript,
+    p2shOutputIndex,
+    commitOutputAmount,
+  } = buildKRC20CommitTransaction(utxos, publicKey, inscription, changeAddress, options);
+
+  const commitTx = await signCommitTransactionWithSigner(unsignedCommitTx, signer, selectedUtxos);
+  const commitTxId = calculateTransactionId(commitTx);
+  const commitBroadcastData = serializeForBroadcast(commitTx);
+
+  const { tx: unsignedRevealTx, p2shUtxo } = buildKRC20RevealTransaction(
+    commitTxId,
+    p2shOutputIndex,
+    commitOutputAmount,
+    redeemScript,
+    toAddress,
+    options
+  );
+
+  const revealTx = await signRevealTransactionWithSigner(unsignedRevealTx, signer, redeemScript, p2shUtxo);
+  const revealTxId = calculateTransactionId(revealTx);
+  const revealBroadcastData = serializeForBroadcast(revealTx);
+
+  return {
+    commitTx,
+    commitTxId,
+    commitBroadcastData,
+    revealTx,
+    revealTxId,
+    revealBroadcastData,
+    inscription,
+  };
 }

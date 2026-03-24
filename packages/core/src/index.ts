@@ -9,7 +9,7 @@ export {
 } from "./platform";
 
 // Wallet
-export { Wallet, type WalletState } from "./wallet";
+export { Wallet, type WalletState, type WalletType } from "./wallet";
 
 // Networks
 export {
@@ -27,8 +27,11 @@ export {
   createMnemonic,
   mnemonicToSeed,
   deriveAccountFromSeed,
+  createHardwareAccount,
   DERIVATION_PATH,
+  LEDGER_DERIVATION_PATH,
   type DerivedAccount,
+  type HardwareAccount,
   type WalletSeed,
 } from "./crypto/mnemonic";
 export {
@@ -47,11 +50,19 @@ export {
   type KaspaTx,
 } from "./kaspa/client";
 
+// Transaction signing abstraction
+export {
+  type TransactionSigner,
+  SoftwareSigner,
+} from "./kaspa/signer";
+
 // Transaction building
 export {
   createSignedTransaction,
+  createSignedTransactionWithSigner,
   buildTransaction,
   signTransaction,
+  signTransactionWithSigner,
   selectUtxos,
   calculateFee,
   calculateTransactionId,
@@ -80,6 +91,7 @@ export {
 } from "./kaspa/krc20-client";
 export {
   createKRC20Transfer,
+  createKRC20TransferWithSigner,
   estimateKRC20TransferCost,
   type KRC20TransferOptions,
   type KRC20TransferResult as KRC20TxResult,

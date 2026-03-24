@@ -1,0 +1,8 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="white" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Up arrow (sent) -->
+  <path d="M22 50V16" />
+  <path d="M10 28 L22 16 L34 28" />
+  <!-- Down arrow (received) -->
+  <path d="M42 14V48" />
+  <path d="M30 36 L42 48 L54 36" />
+</svg>

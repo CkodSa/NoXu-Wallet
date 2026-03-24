@@ -4,6 +4,7 @@
 import { blake2b } from "@noble/hashes/blake2b";
 import { schnorr, secp256k1 } from "@noble/curves/secp256k1";
 import type { KaspaUTXO } from "./client";
+import type { TransactionSigner } from "./signer";
 
 // ============================================================================
 // Types
@@ -758,6 +759,66 @@ export function createSignedTransaction(
   const txId = calculateTransactionId(signedTx);
 
   // Prepare for broadcast
+  const broadcastData = serializeForBroadcast(signedTx);
+
+  return { signedTx, txId, broadcastData };
+}
+
+// ============================================================================
+// Async Signer Variants (for hardware wallets)
+// ============================================================================
+
+/**
+ * Sign all inputs using a TransactionSigner (async, supports hardware wallets)
+ */
+export async function signTransactionWithSigner(
+  tx: Transaction,
+  signer: TransactionSigner,
+  utxos: Array<{ value: bigint; scriptPublicKey: ScriptPublicKey }>,
+  sighashType: number = SIGHASH_ALL
+): Promise<Transaction> {
+  if (utxos.length !== tx.inputs.length) {
+    throw new Error("UTXO count must match input count");
+  }
+
+  const reusedValues: SighashReusedValues = {};
+  const signedInputs = [];
+
+  for (let i = 0; i < tx.inputs.length; i++) {
+    const sighash = calculateSighash(tx, i, utxos[i], sighashType, reusedValues);
+    const signature = await signer.sign(sighash);
+    signedInputs.push({
+      ...tx.inputs[i],
+      signatureScript: createSignatureScript(signature),
+    });
+  }
+
+  return { ...tx, inputs: signedInputs };
+}
+
+/**
+ * Build, sign (async), and prepare a transaction for broadcast
+ */
+export async function createSignedTransactionWithSigner(
+  utxos: KaspaUTXO[],
+  toAddress: string,
+  amount: bigint,
+  changeAddress: string,
+  signer: TransactionSigner,
+  options: TransactionBuilderOptions = {}
+): Promise<{ signedTx: Transaction; txId: string; broadcastData: object }> {
+  const { tx, selectedUtxos } = buildTransaction(utxos, toAddress, amount, changeAddress, options);
+
+  const utxoInfos = selectedUtxos.map((utxo) => ({
+    value: utxo.amountSompi,
+    scriptPublicKey: {
+      version: 0,
+      script: utxo.scriptPublicKey,
+    },
+  }));
+
+  const signedTx = await signTransactionWithSigner(tx, signer, utxoInfos);
+  const txId = calculateTransactionId(signedTx);
   const broadcastData = serializeForBroadcast(signedTx);
 
   return { signedTx, txId, broadcastData };

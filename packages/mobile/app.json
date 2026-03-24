@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "NoXu Wallet",
+    "slug": "noxu-wallet",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "noxuwallet",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#020304"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.noxu.wallet",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Unlock your wallet with Face ID",
+        "NSCameraUsageDescription": "Scan QR codes for wallet addresses"
+      }
+    },
+    "android": {
+      "package": "com.noxu.wallet",
+      "adaptiveIcon": {
+        "backgroundColor": "#020304",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "kaspa"
+            }
+          ],
+          "category": [
+            "DEFAULT",
+            "BROWSABLE"
+          ]
+        }
+      ]
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-local-authentication",
+      "expo-camera",
+      "expo-sharing"
+    ]
+  }
+}

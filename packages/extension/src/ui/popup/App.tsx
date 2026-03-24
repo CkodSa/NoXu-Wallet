@@ -5,17 +5,28 @@ import logoAnimationGif from "../assets/NoxuLogoAnimation.gif";
 import logoStaticPng from "../assets/logo_static.png";
 import {
   type DerivedAccount,
+  type HardwareAccount,
   getStaticTokens,
   type KaspaNetwork,
   type TokenMeta,
   formatTokenBalance,
   formatTimeRemaining,
+  serializeForBroadcast,
+  calculateTransactionId,
+  createHardwareAccount,
+  LEDGER_DERIVATION_PATH,
   type SecurityFeaturesState,
   type WatchOnlyAddress,
   type DelayedTransaction,
   type AddressBookEntry,
   type AddressBook,
 } from "@noxu/core";
+import {
+  connectLedger,
+  disconnectLedger,
+  getLedgerPublicKey,
+  LedgerSigner,
+} from "../../extension/ledger";
 
 type OnboardingStep =
   | "welcome"
@@ -23,7 +34,8 @@ type OnboardingStep =
   | "import"
   | "seed"
   | "confirm"
-  | "login";
+  | "login"
+  | "ledger";
 type MainPage =
   | "home"
   | "send"
@@ -718,12 +730,16 @@ function InnerApp() {
   const {
     account,
     setAccount,
+    walletType,
+    setWalletType,
     setBalance,
     balance,
     tokenBalances,
     setTokenBalances,
     tokenBalancesLoading,
     setTokenBalancesLoading,
+    ledgerConnected,
+    setLedgerConnected,
   } = useWalletStore();
 
   // Hooks – keep order fixed
@@ -740,6 +756,8 @@ function InnerApp() {
   const [kasPriceHistory, setKasPriceHistory] = useState<number[]>([]);
   const [priceLoading, setPriceLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const [ledgerStatus, setLedgerStatus] = useState("");
+  const [ledgerSigning, setLedgerSigning] = useState(false);
   const [password, setPassword] = useState("");
   const [unlockPassword, setUnlockPassword] = useState("");
   const [mnemonic, setMnemonic] = useState<string | undefined>();
@@ -1049,8 +1067,12 @@ function InnerApp() {
         setNetwork(res.network as KaspaNetwork);
       }
 
+      if (res?.walletType) {
+        setWalletType(res.walletType);
+      }
+
       if (res?.account) {
-        setAccount(res.account as DerivedAccount);
+        setAccount(res.account as DerivedAccount | HardwareAccount);
         setOnboardingStep("welcome");
         setMainPage("home");
       } else if (res?.hasWallet) {
@@ -1140,6 +1162,49 @@ function InnerApp() {
     } else setError(res?.error);
   };
 
+  // Ledger connect flow
+  const handleLedgerConnect = async () => {
+    setError(undefined);
+    setLedgerStatus("Connecting to Ledger...");
+    try {
+      const transport = await connectLedger();
+      setLedgerStatus("Open the Kaspa app on your Ledger");
+
+      const pubKeyBytes = await getLedgerPublicKey(transport, LEDGER_DERIVATION_PATH);
+      const hwAccount = createHardwareAccount(pubKeyBytes, LEDGER_DERIVATION_PATH);
+
+      setLedgerStatus("Saving wallet...");
+
+      // Tell background to store hardware wallet
+      const res = await rpc("LEDGER_CONNECT", {
+        publicKey: Array.from(hwAccount.publicKey),
+        address: hwAccount.address,
+        derivationPath: hwAccount.derivationPath,
+      });
+
+      if (res?.ok) {
+        setAccount(hwAccount);
+        setWalletType("hardware");
+        setHasWallet(true);
+        setLedgerConnected(true);
+        setOnboardingStep("welcome");
+        setMainPage("home");
+      } else {
+        setError(res?.error || "Failed to connect Ledger");
+      }
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      if (msg.includes("denied") || msg.includes("NotAllowed")) {
+        setError("Ledger connection was cancelled");
+      } else if (msg.includes("No device selected")) {
+        setError("No Ledger device selected");
+      } else {
+        setError("Ledger error: " + msg);
+      }
+    }
+    setLedgerStatus("");
+  };
+
   // shared unlock
   const handleUnlock = async () => {
     if (!hasWallet) return;
@@ -1177,9 +1242,32 @@ function InnerApp() {
         to: recipient,
         amount: BigInt(Math.round(Number(amount) * 1e8)).toString()
       });
+
+      // Handle Ledger signing in popup
+      if (res?.needsLedgerSign) {
+        try {
+          setLedgerSigning(true);
+          setLedgerStatus("Confirm transaction on your Ledger device...");
+          const transport = await connectLedger();
+          const signer = new LedgerSigner(transport, LEDGER_DERIVATION_PATH, account!.publicKey);
+          const utxoInfos = res.selectedUtxos.map((u: any) => ({
+            value: BigInt(u.amountSompi),
+            scriptPublicKey: { version: 0, script: u.scriptPublicKey },
+          }));
+          const signedTx = await signer.signFullTransaction(res.unsignedTx, utxoInfos);
+          const txId = calculateTransactionId(signedTx);
+          const broadcastData = serializeForBroadcast(signedTx);
+          setLedgerStatus("Broadcasting...");
+          res = await rpc("BROADCAST_SIGNED_TX", { broadcastData, txId });
+        } catch (err: any) {
+          res = { ok: false, error: "Ledger signing failed: " + (err?.message || err) };
+        } finally {
+          setLedgerSigning(false);
+          setLedgerStatus("");
+        }
+      }
     } else {
       // Send KRC-20 token
-      // Find token decimals from tokenBalances
       const tokenBalance = tokenBalances?.find(
         (tb: TokenBalance) => tb.tick.toUpperCase() === selectedToken
       );
@@ -1191,6 +1279,11 @@ function InnerApp() {
         amount: amount,
         decimals: decimals
       });
+
+      // KRC-20 Ledger signing not yet supported (requires 2-step commit/reveal)
+      if (res?.needsLedgerSign) {
+        res = { ok: false, error: "KRC-20 token transfers via Ledger are not yet supported. Please use a software wallet for KRC-20 transfers." };
+      }
     }
 
     setSendingTx(false);
@@ -1574,7 +1667,8 @@ function InnerApp() {
     onboardingStep === "create" ||
     onboardingStep === "import" ||
     onboardingStep === "seed" ||
-    onboardingStep === "confirm";
+    onboardingStep === "confirm" ||
+    onboardingStep === "ledger";
 
   // Token list - combine native KAS with real KRC-20 tokens
   const staticTokens: TokenMeta[] = getStaticTokens(network);
@@ -1692,6 +1786,14 @@ function InnerApp() {
           >
             Import existing wallet
           </button>
+          {typeof navigator !== "undefined" && "hid" in navigator && (
+            <button
+              className="secondary-btn login-secondary-action login-ledger-action"
+              onClick={() => setOnboardingStep("ledger")}
+            >
+              Connect Ledger
+            </button>
+          )}
         </div>
       </div>
     </ScreenLayout>
@@ -1984,7 +2086,36 @@ function InnerApp() {
             </ScreenLayout>
           )}
 
-          {!["welcome", "login", "create", "seed", "confirm", "import"].includes(
+          {onboardingStep === "ledger" && (
+            <ScreenLayout
+              title="Connect Ledger"
+              onBack={() => setOnboardingStep("welcome")}
+            >
+              <div className="card" style={{ display: "grid", gap: 12 }}>
+                <div className="muted" style={{ textAlign: "center" }}>
+                  Connect your Ledger device and open the Kaspa app.
+                </div>
+                {ledgerStatus && (
+                  <div style={{ textAlign: "center", color: "var(--accent)", fontSize: 12 }}>
+                    {ledgerStatus}
+                  </div>
+                )}
+                <button
+                  className="primary-btn"
+                  onClick={handleLedgerConnect}
+                  disabled={!!ledgerStatus}
+                >
+                  {ledgerStatus ? ledgerStatus : "Connect Ledger"}
+                </button>
+                {error && <div className="error-text">{error}</div>}
+                <div className="muted small" style={{ textAlign: "center" }}>
+                  Requires Chrome/Chromium. Your private keys never leave the device.
+                </div>
+              </div>
+            </ScreenLayout>
+          )}
+
+          {!["welcome", "login", "create", "seed", "confirm", "import", "ledger"].includes(
             onboardingStep
           ) && ActionCard}
         </div>
@@ -3858,6 +3989,22 @@ function InnerApp() {
         setMainPage(page);
       }} />
       {ConfirmSendModal}
+      {ledgerSigning && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ textAlign: "center" }}>
+            <div className="modal-title">Ledger Signing</div>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>
+              <span className="spinning">&#x21bb;</span>
+            </div>
+            <div style={{ color: "var(--accent)", fontSize: 13, fontWeight: 600 }}>
+              {ledgerStatus || "Confirm on your Ledger device..."}
+            </div>
+            <div className="muted small" style={{ marginTop: 8 }}>
+              Do not close this window
+            </div>
+          </div>
+        </div>
+      )}
       {DelayedTxModal}
     </div>
   );

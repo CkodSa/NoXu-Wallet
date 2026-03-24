@@ -1,0 +1,30 @@
+{
+  "name": "@noxu/extension",
+  "version": "1.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "vite --mode development",
+    "build": "vite build && vite build --config vite.contentscript.config.ts",
+    "build:chrome": "TARGET_BROWSER=chrome vite build && vite build --config vite.contentscript.config.ts",
+    "build:firefox": "TARGET_BROWSER=firefox vite build && vite build --config vite.contentscript.config.ts",
+    "build:all": "npm run build:chrome && mv dist dist-chrome && npm run build:firefox && mv dist dist-firefox"
+  },
+  "dependencies": {
+    "@ledgerhq/hw-transport-webhid": "^6.32.0",
+    "@noxu/core": "*",
+    "hw-app-kaspa": "github:coderofstuff/hw-app-kaspa",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "webextension-polyfill": "^0.12.0",
+    "zustand": "4.5.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "0.0.263",
+    "@types/react": "18.2.43",
+    "@types/react-dom": "18.2.17",
+    "@types/webextension-polyfill": "^0.12.4",
+    "@vitejs/plugin-react": "4.2.1",
+    "typescript": "5.4.2",
+    "vite": "7.2.4"
+  }
+}

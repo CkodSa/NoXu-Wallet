@@ -1,0 +1,10 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="white" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Baseline -->
+  <path d="M10 52 H54" />
+  <!-- Short bar -->
+  <path d="M22 52 V40" />
+  <!-- Medium bar -->
+  <path d="M34 52 V28" />
+  <!-- Tall bar -->
+  <path d="M46 52 V16" />
+</svg>
