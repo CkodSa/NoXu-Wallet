@@ -6,7 +6,7 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: false, // Don't clear dist - main build runs first
-    sourcemap: true,
+    sourcemap: process.env.NODE_ENV === "development",
     lib: {
       entry: resolve(__dirname, "src/contentScript/index.ts"),
       name: "NoXuContentScript",

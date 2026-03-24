@@ -157,7 +157,8 @@ export default function LoginScreen() {
     if (biometricEnabled) {
       handleBiometric();
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, [biometricEnabled]);
 
   return (
     <SafeAreaView style={styles.container}>
