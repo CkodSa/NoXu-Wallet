@@ -39,7 +39,8 @@
     }
 
     _sendToExtension(payload) {
-      const id = ++this._reqId;
+      this._reqId = (this._reqId + 1) % Number.MAX_SAFE_INTEGER;
+      const id = this._reqId;
       return new Promise((resolve, reject) => {
         this._pending.set(id, { resolve, reject });
 

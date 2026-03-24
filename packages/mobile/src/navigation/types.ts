@@ -34,7 +34,6 @@ export type MainStackParamList = {
   SendStack: { token?: string; to?: string };
   ReceiveStack: undefined;
   PnL: undefined;
-  WatchDetail: { address: string; label: string };
 };
 
 // Screen props helpers

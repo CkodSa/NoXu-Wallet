@@ -916,7 +916,7 @@ browser.runtime.onMessage.addListener(
               if (!utxos.length) return { ok: false, error: "No funds available" };
               const { tx, selectedUtxos } = buildTransaction(utxos, to, amountSompi, account.address);
               return {
-                ok: false,
+                ok: true,
                 needsLedgerSign: true,
                 unsignedTx: tx,
                 selectedUtxos,
@@ -1024,12 +1024,17 @@ browser.runtime.onMessage.addListener(
           }
 
           case "SIGN_TX": {
-            // Placeholder: implement real signing when you have raw tx bytes, etc.
-            return { ok: true, signature: "stub-signature" };
+            return { ok: false, error: "Transaction signing via dApps is not yet supported. Use the wallet UI to send transactions." };
           }
 
           case "SIGN_AND_SEND": {
             const { to, amount } = message.payload;
+            if (!to || !isValidKaspaAddress(to)) {
+              return { ok: false, error: "Invalid recipient address" };
+            }
+            if (!amount || BigInt(amount) <= 0n) {
+              return { ok: false, error: "Amount must be greater than zero" };
+            }
             const txid = await wallet.sendTransaction(to, BigInt(amount));
             return { ok: true, txid };
           }
@@ -1361,7 +1366,7 @@ browser.runtime.onMessage.addListener(
               // For hardware wallets, return unsigned data for popup-side signing
               if (wallet.isHardwareWallet()) {
                 return {
-                  ok: false,
+                  ok: true,
                   needsLedgerSign: true,
                   tick,
                   to,

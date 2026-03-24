@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import type { OnboardingScreenProps } from "../../navigation/types";
+import { useWalletStore } from "../../store";
 import { colors, fonts, spacing, radii, shadows } from "../../theme";
 
 function pickRandomIndices(total: number, count: number): number[] {
@@ -49,9 +50,12 @@ export default function ConfirmSeedScreen({
       (c, i) => answers[i] === c.word
     );
     if (allCorrect) {
-      Alert.alert("Success", "Seed phrase verified! Your wallet is ready.", [
-        { text: "Continue", onPress: () => {} },
-      ]);
+      // Wallet was already created in CreateWalletScreen — setting store
+      // flags triggers RootNavigator to switch to Main automatically
+      const { setHasWallet, setUnlocked } = useWalletStore.getState();
+      setHasWallet(true);
+      setUnlocked(true);
+      Alert.alert("Success", "Seed phrase verified! Your wallet is ready.");
     } else {
       Alert.alert(
         "Incorrect",

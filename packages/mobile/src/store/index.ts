@@ -1,10 +1,11 @@
 import { create } from "zustand";
-import type {
-  DerivedAccount,
-  KaspaNetwork,
-  SecurityFeaturesState,
-  AddressBook,
-  KaspaTx,
+import {
+  DEFAULT_SECURITY_FEATURES,
+  type DerivedAccount,
+  type KaspaNetwork,
+  type SecurityFeaturesState,
+  type AddressBook,
+  type KaspaTx,
 } from "@noxu/core";
 
 export type TokenBalance = {
@@ -80,7 +81,7 @@ const initialState = {
   kasPrice: undefined,
   kasChange24h: undefined,
   currency: "usd",
-  securityFeatures: undefined,
+  securityFeatures: DEFAULT_SECURITY_FEATURES,
   isDuressMode: false,
   addressBook: undefined,
   autoLockMinutes: 5,

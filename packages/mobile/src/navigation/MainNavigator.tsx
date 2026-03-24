@@ -15,8 +15,8 @@ import TransactionDetailScreen from "../screens/details/TransactionDetailScreen"
 import PnLScreen from "../screens/details/PnLScreen";
 
 // Stack-level wrappers that pass route params through to the tab-screen components
-function SendStackScreen({ route }: MainStackScreenProps<"SendStack">) {
-  return <SendScreen route={{ ...route, params: route.params } as any} navigation={{} as any} />;
+function SendStackScreen({ route, navigation }: MainStackScreenProps<"SendStack">) {
+  return <SendScreen route={{ ...route, params: route.params } as any} navigation={navigation as any} />;
 }
 function ReceiveStackScreen() {
   return <ReceiveScreen />;
