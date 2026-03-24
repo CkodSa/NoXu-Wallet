@@ -1,4 +1,5 @@
 import React, { useEffect, useCallback, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
@@ -36,6 +37,9 @@ type Props = CompositeScreenProps<
   MainTabScreenProps<"Home">,
   NativeStackScreenProps<MainStackParamList>
 >;
+
+const APP_VERSION = "1.1.0";
+const DISMISSED_VERSION_KEY = "noxu_dismissed_version";
 
 function shortenAddress(addr: string): string {
   if (addr.length <= 24) return addr;
@@ -98,6 +102,18 @@ export default function HomeScreen({ navigation }: Props) {
   const [tokenPrices, setTokenPrices] = useState<Record<string, number>>({});
   // 7-day sparkline data for KAS
   const [sparklineData, setSparklineData] = useState<PricePoint[]>([]);
+
+  // Update banner
+  const [showUpdateBanner, setShowUpdateBanner] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem(DISMISSED_VERSION_KEY).then((v) => {
+      if (v !== APP_VERSION) setShowUpdateBanner(true);
+    }).catch(() => {});
+  }, []);
+  const dismissUpdateBanner = () => {
+    setShowUpdateBanner(false);
+    AsyncStorage.setItem(DISMISSED_VERSION_KEY, APP_VERSION).catch(() => {});
+  };
 
   useEffect(() => {
     refreshBalance();
@@ -297,6 +313,18 @@ export default function HomeScreen({ navigation }: Props) {
             </Text>
           </View>
         </View>
+
+        {/* Update Banner */}
+        {showUpdateBanner && (
+          <View style={styles.updateBanner}>
+            <Text style={styles.updateBannerText}>
+              NoXu v{APP_VERSION} is here! Mobile app + monorepo overhaul.
+            </Text>
+            <TouchableOpacity onPress={dismissUpdateBanner} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.updateBannerDismiss}>{"\u00D7"}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Balance Card */}
         <View style={[styles.balanceCard, shadows.glow]}>
@@ -951,6 +979,32 @@ const styles = StyleSheet.create({
     color: colors.muted,
     textAlign: "center",
     paddingVertical: spacing.lg,
+  },
+  updateBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    backgroundColor: colors.accentSoft,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: "rgba(110, 199, 187, 0.35)",
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  updateBannerText: {
+    flex: 1,
+    fontSize: fonts.sizes.xs,
+    fontWeight: fonts.weights.semibold,
+    color: colors.accent,
+  },
+  updateBannerDismiss: {
+    fontSize: 20,
+    color: colors.accent,
+    opacity: 0.7,
+    lineHeight: 20,
   },
   syncErrorBanner: {
     backgroundColor: colors.dangerSoft,

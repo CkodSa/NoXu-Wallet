@@ -14,6 +14,13 @@ NoXu Wallet enables users to securely manage their KAS holdings with industry-le
 
 ## Changelog
 
+### v1.1.0 — Mobile App & Monorepo Overhaul
+
+- **Mobile Companion App** — Full React Native (Expo) app with biometric auth, QR scanning, and all core wallet features
+- **Monorepo Architecture** — Restructured as NPM workspaces (`packages/core`, `packages/extension`, `packages/mobile`) with shared `@noxu/core` library
+- **Repository Cleanup** — Removed accidentally committed `node_modules/` and `dist/` from git tracking, added all source files
+- **Ledger Hardware Wallet** — Added Ledger integration scaffolding for the extension (USB/HID transport + signing)
+
 ### v1.0.1 — Multi-Currency, KRC-20 Transfers & UI Overhaul
 
 **Multi-Currency Fiat Support**
