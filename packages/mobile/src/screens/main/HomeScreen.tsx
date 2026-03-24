@@ -9,6 +9,7 @@ import {
   ScrollView,
   RefreshControl,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -40,6 +41,7 @@ type Props = CompositeScreenProps<
 
 const APP_VERSION = "1.1.0";
 const DISMISSED_VERSION_KEY = "noxu_dismissed_version";
+const VERSION_CHECK_URL = "https://raw.githubusercontent.com/CkodSa/NoXu-Wallet/main/version.json";
 
 function shortenAddress(addr: string): string {
   if (addr.length <= 24) return addr;
@@ -103,16 +105,25 @@ export default function HomeScreen({ navigation }: Props) {
   // 7-day sparkline data for KAS
   const [sparklineData, setSparklineData] = useState<PricePoint[]>([]);
 
-  // Update banner
-  const [showUpdateBanner, setShowUpdateBanner] = useState(false);
+  // Update banner — fetches remote version.json, only shows if remote > local
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; message: string; url: string } | null>(null);
   useEffect(() => {
-    AsyncStorage.getItem(DISMISSED_VERSION_KEY).then((v) => {
-      if (v !== APP_VERSION) setShowUpdateBanner(true);
-    }).catch(() => {});
+    fetch(VERSION_CHECK_URL, { cache: "no-cache" })
+      .then((r) => r.json())
+      .then(async (data) => {
+        if (data.version && data.version !== APP_VERSION) {
+          const dismissed = await AsyncStorage.getItem(DISMISSED_VERSION_KEY).catch(() => null);
+          if (dismissed === data.version) return;
+          setUpdateInfo(data);
+        }
+      })
+      .catch(() => {});
   }, []);
   const dismissUpdateBanner = () => {
-    setShowUpdateBanner(false);
-    AsyncStorage.setItem(DISMISSED_VERSION_KEY, APP_VERSION).catch(() => {});
+    if (updateInfo) {
+      AsyncStorage.setItem(DISMISSED_VERSION_KEY, updateInfo.version).catch(() => {});
+    }
+    setUpdateInfo(null);
   };
 
   useEffect(() => {
@@ -315,15 +326,19 @@ export default function HomeScreen({ navigation }: Props) {
         </View>
 
         {/* Update Banner */}
-        {showUpdateBanner && (
-          <View style={styles.updateBanner}>
+        {updateInfo && (
+          <TouchableOpacity
+            style={styles.updateBanner}
+            onPress={() => Linking.openURL(updateInfo.url)}
+            activeOpacity={0.7}
+          >
             <Text style={styles.updateBannerText}>
-              NoXu v{APP_VERSION} is here! Mobile app + monorepo overhaul.
+              {updateInfo.message}
             </Text>
             <TouchableOpacity onPress={dismissUpdateBanner} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.updateBannerDismiss}>{"\u00D7"}</Text>
             </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
         )}
 
         {/* Balance Card */}

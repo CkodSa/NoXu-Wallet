@@ -87,6 +87,7 @@ async function copyToClipboard(text: string): Promise<boolean> {
 const STORAGE_SEED_SEEN_KEY = "kaspa_hasSeenSeedBackupScreen";
 const APP_VERSION = "1.1.0";
 const DISMISSED_VERSION_KEY = "noxu_dismissed_version";
+const VERSION_CHECK_URL = "https://raw.githubusercontent.com/CkodSa/NoXu-Wallet/main/version.json";
 
 /* ------------------------- Error boundary ------------------------- */
 
@@ -759,13 +760,26 @@ function InnerApp() {
   const [priceLoading, setPriceLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
-  // Update banner
-  const [showUpdateBanner, setShowUpdateBanner] = useState(() => {
-    try { return localStorage.getItem(DISMISSED_VERSION_KEY) !== APP_VERSION; } catch { return true; }
-  });
+  // Update banner — fetches remote version.json, only shows if remote > local
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; message: string; url: string } | null>(null);
+  useEffect(() => {
+    fetch(VERSION_CHECK_URL, { cache: "no-cache" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.version && data.version !== APP_VERSION) {
+          try {
+            if (localStorage.getItem(DISMISSED_VERSION_KEY) === data.version) return;
+          } catch {}
+          setUpdateInfo(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
   const dismissUpdateBanner = () => {
-    setShowUpdateBanner(false);
-    try { localStorage.setItem(DISMISSED_VERSION_KEY, APP_VERSION); } catch {}
+    if (updateInfo) {
+      try { localStorage.setItem(DISMISSED_VERSION_KEY, updateInfo.version); } catch {}
+    }
+    setUpdateInfo(null);
   };
   const [ledgerStatus, setLedgerStatus] = useState("");
   const [ledgerSigning, setLedgerSigning] = useState(false);
@@ -3802,10 +3816,12 @@ function InnerApp() {
       <div className="content" ref={contentRef}>
         {mainPage === "home" && (
           <ScreenLayout title="Home">
-            {showUpdateBanner && (
+            {updateInfo && (
               <div className="update-banner">
-                <span className="update-banner-text">NoXu v{APP_VERSION} is here! Mobile app + monorepo overhaul.</span>
-                <button className="update-banner-dismiss" onClick={dismissUpdateBanner}>&times;</button>
+                <a className="update-banner-text" href={updateInfo.url} target="_blank" rel="noopener noreferrer">
+                  {updateInfo.message}
+                </a>
+                <button className="update-banner-dismiss" onClick={(e) => { e.stopPropagation(); dismissUpdateBanner(); }}>&times;</button>
               </div>
             )}
             {HomeCard}

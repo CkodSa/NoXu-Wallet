@@ -62,7 +62,11 @@ body {
   font-size: 12px;
   font-weight: 600;
   color: var(--accent);
+  text-decoration: none;
   flex: 1;
+}
+.update-banner-text:hover {
+  text-decoration: underline;
 }
 .update-banner-dismiss {
   background: none;
