@@ -53,6 +53,15 @@ const SECURITY_KEY = "kaspa_security_features";
 const ADDRESS_BOOK_KEY = "kaspa_address_book";
 const PNL_DATA_KEY = "kaspa_pnl_data";
 
+// ==================== PENDING dApp CONNECT REQUESTS ====================
+let pendingConnectOrigin: string | null = null;
+
+// ==================== PASSWORD RATE LIMITING ====================
+const MAX_UNLOCK_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 60_000; // 1 minute lockout
+let unlockAttempts = 0;
+let lockoutUntil = 0;
+
 // ==================== PNL TYPES ====================
 
 type CostBasisLot = {
@@ -702,6 +711,12 @@ browser.runtime.onMessage.addListener(
           case "UNLOCK": {
             const { password } = message.payload;
 
+            // Rate limiting — lock out after too many failed attempts
+            if (Date.now() < lockoutUntil) {
+              const secsLeft = Math.ceil((lockoutUntil - Date.now()) / 1000);
+              return { ok: false, error: `Too many attempts. Try again in ${secsLeft}s` };
+            }
+
             // Check if this is the duress PIN
             if (
               securityFeatures.duressMode.enabled &&
@@ -710,39 +725,55 @@ browser.runtime.onMessage.addListener(
             ) {
               isDuressMode = true;
               // Return fake account for duress mode
+              // Require a configured decoy address — never fall back to a
+              // hardcoded address that could fingerprint duress mode in source
+              if (!securityFeatures.duressMode.decoyAddress) {
+                return { ok: false, error: "Incorrect password" };
+              }
               const fakeAccount = {
-                address: securityFeatures.duressMode.decoyAddress ||
-                  "kaspa:qr35ennsep3hxfe7lnz5ee7j5jgmkjswsn35ennsep3hxfe7ln000000",
+                address: securityFeatures.duressMode.decoyAddress,
                 privateKey: new Uint8Array(32),
                 publicKey: new Uint8Array(33),
               };
+              unlockAttempts = 0; // Reset on successful duress unlock
               resetAutoLockTimer();
               return { ok: true, account: fakeAccount, isDuressMode: true };
             }
 
             // Normal unlock
             isDuressMode = false;
-            const { account, needsPersist } = await wallet.unlock(password);
-            // Persist if encryption was migrated to newer version
-            if (needsPersist) {
-              await persistWallet();
-            }
-            // Start auto-lock timer
-            resetAutoLockTimer();
-            // Background PnL sync (non-blocking)
-            setTimeout(async () => {
-              try {
-                if (!pnlData.backfillComplete || pnlData.address !== account.address) {
-                  pnlData = await backfillPnlData(account.address, settings.currency);
-                } else {
-                  await incrementalPnlUpdate(pnlData, account.address, settings.currency);
-                }
-                await persistPnlData();
-              } catch (err) {
-                console.error("[pnl] Background sync failed:", err);
+            try {
+              const { account, needsPersist } = await wallet.unlock(password);
+              unlockAttempts = 0; // Reset on successful unlock
+              // Persist if encryption was migrated to newer version
+              if (needsPersist) {
+                await persistWallet();
               }
-            }, 3000);
-            return { ok: true, account, isDuressMode: false };
+              // Start auto-lock timer
+              resetAutoLockTimer();
+              // Background PnL sync (non-blocking)
+              setTimeout(async () => {
+                try {
+                  if (!pnlData.backfillComplete || pnlData.address !== account.address) {
+                    pnlData = await backfillPnlData(account.address, settings.currency);
+                  } else {
+                    await incrementalPnlUpdate(pnlData, account.address, settings.currency);
+                  }
+                  await persistPnlData();
+                } catch (err) {
+                  console.error("[pnl] Background sync failed:", err);
+                }
+              }, 3000);
+              return { ok: true, account, isDuressMode: false };
+            } catch (unlockErr) {
+              unlockAttempts++;
+              if (unlockAttempts >= MAX_UNLOCK_ATTEMPTS) {
+                lockoutUntil = Date.now() + LOCKOUT_DURATION_MS;
+                unlockAttempts = 0;
+                return { ok: false, error: "Too many failed attempts. Locked for 60 seconds." };
+              }
+              return { ok: false, error: "Incorrect password" };
+            }
           }
 
           case "LOCK": {
@@ -818,7 +849,16 @@ browser.runtime.onMessage.addListener(
 
           case "SEND_TX": {
             const { to, amount, forceImmediate } = message.payload;
+
+            // Validate recipient address
+            if (!to || !isValidKaspaAddress(to)) {
+              return { ok: false, error: "Invalid recipient address" };
+            }
+
             const amountSompi = BigInt(amount);
+            if (amountSompi <= 0n) {
+              return { ok: false, error: "Amount must be greater than zero" };
+            }
 
             // In duress mode, pretend to send but do nothing
             if (isDuressMode) {
@@ -913,16 +953,24 @@ browser.runtime.onMessage.addListener(
                 address: account.address,
               };
             } else {
-              // Not yet approved - require explicit user action
-              // For now, reject and instruct user to approve via popup
-              // TODO: Implement proper approval popup
+              // Store pending request and open the popup for user approval
+              pendingConnectOrigin = origin;
+              try {
+                await browser.action.openPopup();
+              } catch {
+                // openPopup may not be available in all contexts
+              }
               return {
                 ok: false,
-                error: "Connection not approved. Please approve this site in the NoXu wallet popup.",
+                error: "Connection request sent. Please approve in the NoXu wallet popup.",
                 requiresApproval: true,
                 origin,
               };
             }
+          }
+
+          case "GET_PENDING_CONNECT": {
+            return { ok: true, origin: pendingConnectOrigin };
           }
 
           case "APPROVE_ORIGIN": {
@@ -930,10 +978,17 @@ browser.runtime.onMessage.addListener(
             const { origin: approveOrigin } = message.payload;
             if (approveOrigin && typeof approveOrigin === "string") {
               approvedOrigins.add(approveOrigin);
+              if (pendingConnectOrigin === approveOrigin) pendingConnectOrigin = null;
               return { ok: true, approved: true };
             } else {
               return { ok: false, error: "Invalid origin" };
             }
+          }
+
+          case "REJECT_ORIGIN": {
+            // Called from popup UI when user rejects a pending connect
+            if (pendingConnectOrigin) pendingConnectOrigin = null;
+            return { ok: true };
           }
 
           case "REVOKE_ORIGIN": {

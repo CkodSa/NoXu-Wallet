@@ -781,6 +781,14 @@ function InnerApp() {
     }
     setUpdateInfo(null);
   };
+  // Pending dApp connect approval
+  const [pendingConnectOrigin, setPendingConnectOrigin] = useState<string | null>(null);
+  useEffect(() => {
+    rpc("GET_PENDING_CONNECT").then((res) => {
+      if (res?.ok && res.origin) setPendingConnectOrigin(res.origin);
+    });
+  }, []);
+
   const [ledgerStatus, setLedgerStatus] = useState("");
   const [ledgerSigning, setLedgerSigning] = useState(false);
   const [password, setPassword] = useState("");
@@ -1334,8 +1342,16 @@ function InnerApp() {
           const raw = b.balance;
           let num: number;
 
-          if (typeof raw === "bigint") num = Number(raw);
-          else num = Number(raw);
+          // Convert sompi to KAS safely — split into high/low to avoid
+          // precision loss for balances exceeding Number.MAX_SAFE_INTEGER
+          if (typeof raw === "bigint") {
+            const SOMPI_PER_KAS = 100_000_000n;
+            const whole = raw / SOMPI_PER_KAS;
+            const frac = raw % SOMPI_PER_KAS;
+            num = Number(whole) + Number(frac) / 1e8;
+          } else {
+            num = Number(raw);
+          }
 
           if (Number.isNaN(num)) num = 0;
           setBalance(num);
@@ -3822,6 +3838,23 @@ function InnerApp() {
                   {updateInfo.message}
                 </a>
                 <button className="update-banner-dismiss" onClick={(e) => { e.stopPropagation(); dismissUpdateBanner(); }}>&times;</button>
+              </div>
+            )}
+            {pendingConnectOrigin && (
+              <div className="connect-approval-banner">
+                <div className="connect-approval-text">
+                  <strong>{pendingConnectOrigin}</strong> wants to connect to your wallet
+                </div>
+                <div className="connect-approval-actions">
+                  <button className="btn-approve" onClick={() => {
+                    rpc("APPROVE_ORIGIN", { origin: pendingConnectOrigin });
+                    setPendingConnectOrigin(null);
+                  }}>Approve</button>
+                  <button className="btn-reject" onClick={() => {
+                    rpc("REJECT_ORIGIN", {});
+                    setPendingConnectOrigin(null);
+                  }}>Reject</button>
+                </div>
               </div>
             )}
             {HomeCard}

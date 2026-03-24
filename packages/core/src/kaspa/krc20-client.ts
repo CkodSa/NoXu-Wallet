@@ -11,6 +11,13 @@ import {
   type KRC20TransferResult as KRC20TxResult,
 } from "./krc20-transaction";
 
+/** Parse an integer string safely — returns 0 for NaN/negative/non-finite values */
+function safeParseInt(value: string | undefined | null, fallback = 0): number {
+  if (!value) return fallback;
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
 // Kasplex API endpoints per network
 const KASPLEX_ENDPOINTS: Record<KaspaNetwork, string> = {
   mainnet: "https://api.kasplex.org/v1",
@@ -137,7 +144,7 @@ export class KRC20Client {
         tick: item.tick,
         balance: BigInt(item.balance),
         locked: BigInt(item.locked),
-        decimals: parseInt(item.dec, 10),
+        decimals: safeParseInt(item.dec),
       }));
     } catch (err) {
       // Return empty array if address has no tokens or API error
@@ -165,12 +172,12 @@ export class KRC20Client {
         mintLimit: BigInt(item.lim),
         preMine: BigInt(item.pre),
         deployer: item.to,
-        decimals: parseInt(item.dec, 10),
+        decimals: safeParseInt(item.dec),
         minted: BigInt(item.minted),
         state: item.state,
-        holderTotal: parseInt(item.holderTotal || "0", 10),
-        transferTotal: parseInt(item.transferTotal || "0", 10),
-        mintTotal: parseInt(item.mintTotal || "0", 10),
+        holderTotal: safeParseInt(item.holderTotal),
+        transferTotal: safeParseInt(item.transferTotal),
+        mintTotal: safeParseInt(item.mintTotal),
       };
     } catch (err) {
       console.warn("[KRC20] Failed to fetch token info:", err);
@@ -194,12 +201,12 @@ export class KRC20Client {
         mintLimit: BigInt(item.lim),
         preMine: BigInt(item.pre),
         deployer: item.to,
-        decimals: parseInt(item.dec, 10),
+        decimals: safeParseInt(item.dec),
         minted: BigInt(item.minted),
         state: item.state,
-        holderTotal: parseInt(item.holderTotal || "0", 10),
-        transferTotal: parseInt(item.transferTotal || "0", 10),
-        mintTotal: parseInt(item.mintTotal || "0", 10),
+        holderTotal: safeParseInt(item.holderTotal),
+        transferTotal: safeParseInt(item.transferTotal),
+        mintTotal: safeParseInt(item.mintTotal),
       }));
     } catch (err) {
       console.warn("[KRC20] Failed to fetch token list:", err);
