@@ -758,7 +758,15 @@ function InnerApp() {
   const [kasPriceChange, setKasPriceChange] = useState<number>(0);
   const [kasPriceHistory, setKasPriceHistory] = useState<number[]>([]);
   const [priceLoading, setPriceLoading] = useState(false);
-  const [error, setError] = useState<string | undefined>();
+  const [error, _setError] = useState<string | undefined>();
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setError = useCallback((msg: string | undefined) => {
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    _setError(msg);
+    if (msg) {
+      errorTimerRef.current = setTimeout(() => _setError(undefined), 5000);
+    }
+  }, []);
 
   // Update banner — fetches remote version.json, only shows if remote > local
   const [updateInfo, setUpdateInfo] = useState<{ version: string; message: string; url: string } | null>(null);
@@ -2864,6 +2872,40 @@ function InnerApp() {
               </div>
             </div>
 
+            {/* Ledger Hardware Wallet */}
+            <div className="settings-subsection">
+              <div className="settings-subsection-title">Hardware Wallet</div>
+              {ledgerConnected ? (
+                <div style={{ display: "grid", gap: 8 }}>
+                  <div className="muted small" style={{ color: "var(--success)" }}>
+                    Ledger connected
+                  </div>
+                  <button
+                    className="secondary-btn"
+                    onClick={async () => {
+                      await disconnectLedger();
+                      setLedgerConnected(false);
+                    }}
+                  >
+                    Disconnect Ledger
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: 8 }}>
+                  <button
+                    className="secondary-btn"
+                    onClick={handleLedgerConnect}
+                    disabled={!!ledgerStatus}
+                  >
+                    {ledgerStatus || "Connect Ledger"}
+                  </button>
+                  <div className="muted small">
+                    Connect a Ledger device to sign transactions with hardware security.
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="settings-subsection">
               <button
                 className="secondary-btn danger-btn"
@@ -4072,6 +4114,13 @@ function InnerApp() {
         </div>
       )}
       {DelayedTxModal}
+
+      {/* Global error toast */}
+      {error && !["welcome", "login", "create", "seed", "confirm", "import", "ledger"].includes(onboardingStep) && (
+        <div className="error-toast" onClick={() => setError(undefined)}>
+          {error}
+        </div>
+      )}
     </div>
   );
 }

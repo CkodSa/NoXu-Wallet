@@ -82,6 +82,29 @@ body {
   opacity: 1;
 }
 
+/* ------------ Error Toast ------------ */
+.error-toast {
+  position: fixed;
+  bottom: 70px;
+  left: 16px;
+  right: 16px;
+  background: rgba(249, 115, 115, 0.15);
+  border: 1px solid rgba(249, 115, 115, 0.4);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--danger);
+  text-align: center;
+  cursor: pointer;
+  z-index: 9999;
+  animation: toast-slide-up 0.2s ease-out;
+}
+@keyframes toast-slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* ------------ dApp Connect Approval ------------ */
 .connect-approval-banner {
   background: rgba(7, 10, 12, 0.98);
