@@ -8,6 +8,7 @@ export const DUST_LIMIT = 546n; // sompi
 import { blake2b } from "@noble/hashes/blake2b";
 import { schnorr, secp256k1 } from "@noble/curves/secp256k1";
 import type { KaspaUTXO } from "./client";
+import { hexToBytes, bytesToHex, concat } from "../utils";
 import type { TransactionSigner } from "./signer";
 
 // ============================================================================
@@ -60,20 +61,6 @@ export const SUBNETWORK_ID_NATIVE = "0000000000000000000000000000000000000000";
 // Serialization Helpers
 // ============================================================================
 
-function hexToBytes(hex: string): Uint8Array {
-  if (hex.length % 2 !== 0) throw new Error("Invalid hex string");
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16);
-  }
-  return bytes;
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 // Reverse bytes (for little-endian txid conversion)
 function reverseBytes(bytes: Uint8Array): Uint8Array {
@@ -141,17 +128,6 @@ function writeVarInt(value: number | bigint): Uint8Array {
   }
 }
 
-// Concatenate multiple Uint8Arrays
-function concat(...arrays: Uint8Array[]): Uint8Array {
-  const totalLen = arrays.reduce((sum, arr) => sum + arr.length, 0);
-  const result = new Uint8Array(totalLen);
-  let offset = 0;
-  for (const arr of arrays) {
-    result.set(arr, offset);
-    offset += arr.length;
-  }
-  return result;
-}
 
 // ============================================================================
 // Blake2b Hashing (Kaspa uses Blake2b with specific personalization)

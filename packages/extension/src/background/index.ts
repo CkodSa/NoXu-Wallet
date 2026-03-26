@@ -38,11 +38,11 @@ import type { RpcMessage } from "../messages";
 initWebCrypto();
 
 // Console security warning (shows in service worker console)
-console.log(
+console.warn(
   "%c⚠️ SECURITY WARNING",
   "color: red; font-size: 20px; font-weight: bold;"
 );
-console.log(
+console.warn(
   "%cIf someone told you to paste something here, it is a SCAM. NoXu support will NEVER ask you to use the console.",
   "font-size: 14px; color: orange;"
 );

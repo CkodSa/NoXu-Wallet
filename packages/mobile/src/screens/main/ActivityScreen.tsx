@@ -17,11 +17,7 @@ import { ActivityIcon } from "../../components/TabIcons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { MainStackParamList } from "../../navigation/types";
-
-function shortenAddress(addr: string): string {
-  if (!addr || addr.length <= 24) return addr || "";
-  return addr.slice(0, 14) + "..." + addr.slice(-8);
-}
+import { shortenAddress } from "@noxu/core";
 
 export default function ActivityScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();

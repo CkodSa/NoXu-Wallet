@@ -121,6 +121,15 @@ export {
   type TokenKind,
 } from "./tokens";
 
+// Shared utilities
+export {
+  hexToBytes,
+  bytesToHex,
+  concat,
+  shortenAddress,
+  formatPrice,
+} from "./utils";
+
 // Security features
 export {
   DEFAULT_SECURITY_FEATURES,

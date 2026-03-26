@@ -21,6 +21,8 @@ import {
   getTokenImage,
   getKaspaPriceHistory,
   KAS_LOGO_URL,
+  shortenAddress,
+  formatPrice,
   type TrendingToken,
   type PricePoint,
 } from "@noxu/core";
@@ -43,11 +45,6 @@ const APP_VERSION = "1.1.0";
 const DISMISSED_VERSION_KEY = "noxu_dismissed_version";
 const VERSION_CHECK_URL = "https://raw.githubusercontent.com/CkodSa/NoXu-Wallet/main/version.json";
 
-function shortenAddress(addr: string): string {
-  if (addr.length <= 24) return addr;
-  return addr.slice(0, 14) + "..." + addr.slice(-8);
-}
-
 function formatKas(sompiOrKas: number | undefined): string {
   if (sompiOrKas === undefined) return "0.00";
   return sompiOrKas.toLocaleString("en-US", {
@@ -64,12 +61,6 @@ function formatFiat(kas: number | undefined, price: number | undefined): string 
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-}
-
-function formatPrice(price: number): string {
-  if (price >= 1) return "$" + price.toFixed(2);
-  if (price >= 0.01) return "$" + price.toFixed(4);
-  return "$" + price.toFixed(6);
 }
 
 export default function HomeScreen({ navigation }: Props) {

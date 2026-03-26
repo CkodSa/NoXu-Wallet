@@ -19,6 +19,7 @@ import {
   KAS_LOGO_URL,
   KRC20TransferClient,
   getNetworkConfig,
+  formatPrice,
   type PricePoint,
   type TokenPrice,
   type KRC20TokenInfo,
@@ -31,12 +32,6 @@ type Props = MainStackScreenProps<"TokenDetail">;
 type ChartRange = "D" | "W" | "M";
 
 const RANGE_DAYS: Record<ChartRange, 1 | 7 | 30> = { D: 1, W: 7, M: 30 };
-
-function formatPrice(price: number): string {
-  if (price >= 1) return "$" + price.toFixed(2);
-  if (price >= 0.01) return "$" + price.toFixed(4);
-  return "$" + price.toFixed(6);
-}
 
 export default function TokenDetailScreen({ navigation, route }: Props) {
   const { tick, isNative } = route.params;

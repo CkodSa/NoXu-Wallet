@@ -13,13 +13,9 @@ import * as Clipboard from "expo-clipboard";
 import { colors, fonts, spacing, radii, shadows } from "../../theme";
 import type { MainStackScreenProps } from "../../navigation/types";
 import { useWalletStore } from "../../store";
+import { shortenAddress } from "@noxu/core";
 
 type Props = MainStackScreenProps<"TransactionDetail">;
-
-function shortenAddress(addr: string): string {
-  if (!addr || addr.length <= 24) return addr || "";
-  return addr.slice(0, 14) + "..." + addr.slice(-8);
-}
 
 export default function TransactionDetailScreen({ route, navigation }: Props) {
   const { tx } = route.params;
