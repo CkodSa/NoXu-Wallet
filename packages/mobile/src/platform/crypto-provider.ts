@@ -56,7 +56,7 @@ const rnCryptoProvider: CryptoProvider = {
       );
       return new Uint8Array(pt);
     } catch (err) {
-      throw new Error("OperationError: decrypt failed");
+      throw new Error("Decryption failed. The password may be incorrect.");
     }
   },
 

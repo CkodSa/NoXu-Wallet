@@ -97,13 +97,13 @@ export class KaspaClient {
         });
         clearTimeout(timeout);
         if (!res.ok) {
-          throw new Error(`REST HTTP ${res.status}: ${res.statusText}`);
+          throw new Error("Unable to reach the Kaspa network. Please check your connection and try again.");
         }
         const data = await res.json();
         // Validate response against schema
         const parsed = schema.safeParse(data);
         if (!parsed.success) {
-          throw new Error(`Invalid API response: ${parsed.error.message}`);
+          throw new Error("Received an unexpected response from the network. Please try again.");
         }
         return parsed.data;
       } catch (err) {
@@ -112,7 +112,7 @@ export class KaspaClient {
         attempt += 1;
       }
     }
-    throw new Error("REST call failed");
+    throw new Error("Could not connect to the Kaspa network after multiple attempts. Please try again later.");
   }
 
   /** POST request for submitting transactions */
@@ -136,13 +136,13 @@ export class KaspaClient {
         clearTimeout(timeout);
         if (!res.ok) {
           const errorText = await res.text().catch(() => res.statusText);
-          throw new Error(`REST HTTP ${res.status}: ${errorText}`);
+          throw new Error("Unable to submit your request to the Kaspa network. Please try again.");
         }
         const data = await res.json();
         // Validate response against schema
         const parsed = schema.safeParse(data);
         if (!parsed.success) {
-          throw new Error(`Invalid API response: ${parsed.error.message}`);
+          throw new Error("Received an unexpected response from the network. Please try again.");
         }
         return parsed.data;
       } catch (err) {
@@ -151,7 +151,7 @@ export class KaspaClient {
         attempt += 1;
       }
     }
-    throw new Error("REST POST failed");
+    throw new Error("Could not submit to the Kaspa network after multiple attempts. Please try again later.");
   }
 
   async getBalance(address: string): Promise<number> {

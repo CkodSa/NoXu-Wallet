@@ -147,7 +147,7 @@ export function useWalletService() {
     const wallet = getWallet();
     const account = wallet.getAccount();
     if (!account || !account.privateKey || !account.publicKey) {
-      throw new Error("Wallet locked");
+      throw new Error("Your wallet is locked. Please unlock it to continue.");
     }
 
     const networkConfig = getNetworkConfig(wallet.getNetwork());

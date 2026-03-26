@@ -103,12 +103,12 @@ async function fetchJSON(url: string): Promise<any> {
       signal: controller.signal,
     });
     if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${res.statusText} for ${url}`);
+      throw new Error("Unable to fetch price data. Please check your connection and try again.");
     }
     return await res.json();
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
-      throw new Error(`Request timed out after ${FETCH_TIMEOUT_MS}ms: ${url}`);
+      throw new Error("Price data request timed out. Please try again.");
     }
     throw err;
   } finally {
@@ -309,7 +309,7 @@ export async function getKaspaPrice(currency = "usd"): Promise<KaspaPrice> {
     return price;
   }
 
-  throw new Error(`No Kaspa price data for ${currency}`);
+  throw new Error("Price data is currently unavailable. Please try again later.");
 }
 
 /**

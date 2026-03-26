@@ -113,7 +113,7 @@ function encodeData(data: string): number[] {
   // Version 4-L byte mode: 78 byte capacity
   const capacity = 78;
   if (bytes.length > capacity)
-    throw new Error(`Data too long: ${bytes.length} > ${capacity}`);
+    throw new Error("The data is too large to encode in a QR code.");
 
   const bits: number[] = [];
   const pushBits = (val: number, len: number) => {

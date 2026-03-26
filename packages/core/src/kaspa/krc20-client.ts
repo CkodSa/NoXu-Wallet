@@ -112,13 +112,13 @@ export class KRC20Client {
           headers: { Accept: "application/json" },
         });
         if (!res.ok) {
-          throw new Error(`KRC-20 API HTTP ${res.status}: ${res.statusText}`);
+          throw new Error("Unable to reach the KRC-20 token service. Please check your connection and try again.");
         }
         const data = await res.json();
         // Validate response against schema
         const parsed = schema.safeParse(data);
         if (!parsed.success) {
-          throw new Error(`Invalid KRC-20 API response: ${parsed.error.message}`);
+          throw new Error("Received an unexpected response from the token service. Please try again.");
         }
         return parsed.data;
       } catch (err) {
@@ -127,7 +127,7 @@ export class KRC20Client {
         attempt += 1;
       }
     }
-    throw new Error("KRC-20 API call failed");
+    throw new Error("Could not connect to the KRC-20 token service after multiple attempts. Please try again later.");
   }
 
   /**
@@ -488,7 +488,7 @@ export class KRC20TransferClient extends KRC20Client {
     } catch (err: any) {
       return {
         success: false,
-        error: err?.message || "Failed to execute KRC-20 transfer",
+        error: "Token transfer failed. Please check your balance and try again.",
       };
     }
   }
@@ -512,13 +512,13 @@ export class KRC20TransferClient extends KRC20Client {
 
       if (!res.ok) {
         const errorText = await res.text().catch(() => res.statusText);
-        return { success: false, error: `HTTP ${res.status}: ${errorText}` };
+        return { success: false, error: "Unable to broadcast the transaction. Please try again." };
       }
 
       const data = await res.json();
       return { success: true, txId: data.transactionId };
     } catch (err: any) {
-      return { success: false, error: err?.message || "Broadcast failed" };
+      return { success: false, error: "Could not broadcast the transaction. Please check your connection and try again." };
     }
   }
 

@@ -127,20 +127,13 @@ class ErrorBoundary extends React.Component<
           }}
         >
           <div style={{ fontWeight: 700, marginBottom: 8 }}>
-            Wallet UI crashed
+            Something went wrong
           </div>
           <div style={{ marginBottom: 8 }}>
-            {String(err && err.message ? err.message : err)}
+            The wallet encountered an unexpected error. Please try closing and reopening the extension.
           </div>
-          {err && err.stack && (
-            <>
-              <div style={{ fontWeight: 600, marginTop: 8 }}>Stack:</div>
-              <div>{String(err.stack)}</div>
-            </>
-          )}
           <div style={{ marginTop: 12, opacity: 0.8 }}>
-            Open DevTools → Console for the same stack trace, then fix the
-            component and line shown there.
+            If this keeps happening, please report it at github.com/CkodSa/NoXu-Wallet/issues
           </div>
         </div>
       );

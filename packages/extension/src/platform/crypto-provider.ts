@@ -16,7 +16,7 @@ const webCryptoProvider: CryptoProvider = {
       return new Uint8Array(pt);
     } catch (err) {
       if (err instanceof DOMException && err.name === "OperationError") {
-        throw new Error("OperationError: decrypt failed");
+        throw new Error("Decryption failed. The password may be incorrect.");
       }
       throw err;
     }

@@ -1138,7 +1138,7 @@ browser.runtime.onMessage.addListener(
               const balance = await getWatchOnlyBalance(address);
               return { ok: true, balance };
             } catch (err: any) {
-              return { ok: false, error: err?.message || "Failed to fetch balance" };
+              return { ok: false, error: "Unable to fetch balance. Please check your connection." };
             }
           }
 
@@ -1150,7 +1150,7 @@ browser.runtime.onMessage.addListener(
               const history = await client.getTransactions(address);
               return { ok: true, history };
             } catch (err: any) {
-              return { ok: false, error: err?.message || "Failed to fetch history" };
+              return { ok: false, error: "Unable to load transaction history. Please try again." };
             }
           }
 
@@ -1221,7 +1221,7 @@ browser.runtime.onMessage.addListener(
               await persistSecurityFeatures();
               return { ok: true, txid };
             } catch (err: any) {
-              return { ok: false, error: err?.message || "Transaction failed" };
+              return { ok: false, error: "Transaction could not be completed. Please try again." };
             }
           }
 
@@ -1253,7 +1253,7 @@ browser.runtime.onMessage.addListener(
               }));
               return { ok: true, balances: serializedBalances };
             } catch (err: any) {
-              return { ok: false, error: err?.message || "Failed to fetch token balances" };
+              return { ok: false, error: "Unable to load token balances. Please try again." };
             }
           }
 
@@ -1286,7 +1286,7 @@ browser.runtime.onMessage.addListener(
                 },
               };
             } catch (err: any) {
-              return { ok: false, error: err?.message || "Failed to fetch token info" };
+              return { ok: false, error: "Unable to load token information. Please try again." };
             }
           }
 
@@ -1311,7 +1311,7 @@ browser.runtime.onMessage.addListener(
               }));
               return { ok: true, tokens: serializedTokens };
             } catch (err: any) {
-              return { ok: false, error: err?.message || "Failed to fetch token list" };
+              return { ok: false, error: "Unable to load the token list. Please try again." };
             }
           }
 
@@ -1407,7 +1407,7 @@ browser.runtime.onMessage.addListener(
               console.error("[KRC20] Transfer error:", err);
               return {
                 ok: false,
-                error: err?.message || "Failed to execute KRC-20 transfer",
+                error: "Token transfer failed. Please check your balance and try again.",
               };
             }
           }
@@ -1474,7 +1474,7 @@ browser.runtime.onMessage.addListener(
               const price = await getKaspaPrice(settings.currency);
               return { ok: true, price };
             } catch (err: any) {
-              return { ok: false, error: err?.message || "Failed to fetch price" };
+              return { ok: false, error: "Unable to fetch the current price. Please try again." };
             }
           }
 
@@ -1485,7 +1485,7 @@ browser.runtime.onMessage.addListener(
               const history = await getKaspaPriceHistory(validDays, settings.currency);
               return { ok: true, history };
             } catch (err: any) {
-              return { ok: false, error: err?.message || "Failed to fetch price history" };
+              return { ok: false, error: "Unable to load price history. Please try again." };
             }
           }
 
@@ -1499,7 +1499,7 @@ browser.runtime.onMessage.addListener(
               const history = await getTokenPriceHistory(symbol, validDays, settings.currency);
               return { ok: true, history };
             } catch (err: any) {
-              return { ok: false, error: err?.message || "Failed to fetch token price history" };
+              return { ok: false, error: "Unable to load token price history. Please try again." };
             }
           }
 
@@ -1517,7 +1517,7 @@ browser.runtime.onMessage.addListener(
               );
               return { ok: true, price };
             } catch (err: any) {
-              return { ok: false, error: err?.message || "Failed to fetch token price" };
+              return { ok: false, error: "Unable to fetch the token price. Please try again." };
             }
           }
 
@@ -1527,7 +1527,7 @@ browser.runtime.onMessage.addListener(
               const tokens = await getTopKrc20Tokens(limit, settings.currency);
               return { ok: true, tokens };
             } catch (err: any) {
-              return { ok: false, error: err?.message || "Failed to fetch trending tokens" };
+              return { ok: false, error: "Unable to load trending tokens. Please try again." };
             }
           }
 
@@ -1537,7 +1537,7 @@ browser.runtime.onMessage.addListener(
               const tokens = await getTopKrc20TokensByGainers(limit, settings.currency);
               return { ok: true, tokens };
             } catch (err: any) {
-              return { ok: false, error: err?.message || "Failed to fetch trending gainers" };
+              return { ok: false, error: "Unable to load trending gainers. Please try again." };
             }
           }
 
@@ -1623,7 +1623,7 @@ browser.runtime.onMessage.addListener(
                 return { ok: true, updated: changed };
               }
             } catch (err: any) {
-              return { ok: false, error: err?.message || "PnL sync failed" };
+              return { ok: false, error: "Unable to sync profit and loss data. Please try again." };
             }
           }
 
@@ -1679,7 +1679,7 @@ browser.runtime.onMessage.addListener(
               const resultTxId = await client.broadcastTransaction(broadcastData);
               return { ok: true, txid: resultTxId || txId };
             } catch (err: any) {
-              return { ok: false, error: err?.message || "Broadcast failed" };
+              return { ok: false, error: "Unable to broadcast the transaction. Please check your connection and try again." };
             }
           }
 
@@ -1692,7 +1692,7 @@ browser.runtime.onMessage.addListener(
         console.error("[wallet] RPC error:", err);
         return {
           ok: false,
-          error: err?.message || String(err),
+          error: "Something went wrong. Please try again or restart the extension.",
         };
       }
     })();

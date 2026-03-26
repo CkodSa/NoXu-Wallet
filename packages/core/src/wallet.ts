@@ -259,7 +259,7 @@ export class Wallet {
    * (encryption was migrated to newer version)
    */
   async unlock(password: string): Promise<{ account: DerivedAccount; needsPersist: boolean }> {
-    if (!this.state.encryptedSeed) throw new Error("Wallet not initialized");
+    if (!this.state.encryptedSeed) throw new Error("No wallet found. Please create or import a wallet first.");
 
     const seed = await decryptSecret(password, this.state.encryptedSeed);
     const account = deriveAccountFromSeed(seed, this.state.network === "testnet");
@@ -304,30 +304,30 @@ export class Wallet {
 
   async getBalance(): Promise<number> {
     const address = this.state.account?.address;
-    if (!address) throw new Error("Wallet locked");
+    if (!address) throw new Error("Your wallet is locked. Please unlock it to continue.");
     return this.client.getBalance(address);
   }
 
   async getUTXOs(): Promise<KaspaUTXO[]> {
     const address = this.state.account?.address;
-    if (!address) throw new Error("Wallet locked");
+    if (!address) throw new Error("Your wallet is locked. Please unlock it to continue.");
     return this.client.getUTXOs(address);
   }
 
   async getHistory(): Promise<KaspaTx[]> {
     const address = this.state.account?.address;
-    if (!address) throw new Error("Wallet locked");
+    if (!address) throw new Error("Your wallet is locked. Please unlock it to continue.");
     return this.client.getTransactions(address);
   }
 
   async sendTransaction(to: string, amountSompi: bigint): Promise<string> {
     const account = this.state.account;
-    if (!account) throw new Error("Wallet locked");
+    if (!account) throw new Error("Your wallet is locked. Please unlock it to continue.");
     return this.client.buildSignBroadcast(account, to, amountSompi);
   }
 
   async exportMnemonic(password: string): Promise<string> {
-    if (!this.state.encryptedMnemonic) throw new Error("Seed not available");
+    if (!this.state.encryptedMnemonic) throw new Error("Recovery phrase is not available. This may be a hardware wallet.");
     const raw = await decryptSecret(password, this.state.encryptedMnemonic);
     const mnemonic = new TextDecoder().decode(raw);
     // Wipe decrypted bytes from memory

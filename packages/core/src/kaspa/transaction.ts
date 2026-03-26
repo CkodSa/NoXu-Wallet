@@ -288,24 +288,24 @@ function verifyChecksum(prefix: string, data: number[]): boolean {
  */
 export function decodeKaspaAddress(address: string): { type: number; payload: Uint8Array } {
   const colonIdx = address.indexOf(":");
-  if (colonIdx === -1) throw new Error("Invalid Kaspa address: missing separator");
+  if (colonIdx === -1) throw new Error("Invalid address. Please enter a valid Kaspa address.");
 
   const prefix = address.slice(0, colonIdx);
   const data = address.slice(colonIdx + 1);
 
-  if (data.length < 9) throw new Error("Invalid Kaspa address: too short");
+  if (data.length < 9) throw new Error("The address is too short. Please check and try again.");
 
   // Decode ALL bech32 characters to 5-bit words (including checksum)
   const allWords: number[] = [];
   for (let i = 0; i < data.length; i++) {
     const val = CHARSET_MAP.get(data[i]);
-    if (val === undefined) throw new Error(`Invalid character in address: ${data[i]}`);
+    if (val === undefined) throw new Error("The address contains invalid characters. Please check and try again.");
     allWords.push(val);
   }
 
   // Verify checksum
   if (!verifyChecksum(prefix, allWords)) {
-    throw new Error("Invalid Kaspa address: checksum verification failed");
+    throw new Error("This address appears to be invalid or corrupted. Please double-check it.");
   }
 
   // Exclude 8-char checksum for payload
@@ -314,7 +314,7 @@ export function decodeKaspaAddress(address: string): { type: number; payload: Ui
   // Convert to bytes
   const payload = fromWords(words);
 
-  if (payload.length < 1) throw new Error("Invalid address payload");
+  if (payload.length < 1) throw new Error("This address is invalid. Please enter a valid Kaspa address.");
 
   return {
     type: payload[0],
@@ -343,7 +343,7 @@ export function addressToScriptPublicKey(address: string): ScriptPublicKey {
     script[34] = OP_CHECKSIGECDSA;
     return { version: 0, script: bytesToHex(script) };
   } else {
-    throw new Error(`Unsupported address type: ${type}`);
+    throw new Error("This address type is not supported by NoXu Wallet.");
   }
 }
 

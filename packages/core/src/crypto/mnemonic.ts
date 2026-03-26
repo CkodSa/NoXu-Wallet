@@ -178,7 +178,7 @@ export function mnemonicToSeed(mnemonic: string): WalletSeed {
 
   const cleaned = normalizeMnemonic(mnemonic);
   if (!validateMnemonic(cleaned, englishWordlist)) {
-    throw new Error("Invalid mnemonic");
+    throw new Error("Invalid recovery phrase. Please check the words and try again.");
   }
   return { mnemonic: cleaned, seed: mnemonicToSeedSync(cleaned) };
 }
@@ -191,7 +191,7 @@ export function deriveAccountFromSeed(
   const derived = hd.derive(DERIVATION_PATH);
 
   if (!derived.privateKey || !derived.publicKey) {
-    throw new Error("Failed to derive key");
+    throw new Error("Unable to create your wallet keys. Please try again with a different recovery phrase.");
   }
 
   const address = pubkeyToKaspaAddress(derived.publicKey, isTestnet);

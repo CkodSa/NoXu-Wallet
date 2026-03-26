@@ -46,7 +46,7 @@ export class LedgerSigner implements TransactionSigner {
    */
   async sign(_sighash: Uint8Array): Promise<Uint8Array> {
     throw new Error(
-      "Ledger does not support per-sighash signing. Use signFullTransaction() instead."
+      "This operation requires your Ledger device. Please make sure it is connected and the Kaspa app is open."
     );
   }
 
@@ -95,7 +95,7 @@ export class LedgerSigner implements TransactionSigner {
     const signedInputs = tx.inputs.map((input, i) => {
       const sig = ledgerInputs[i].signature;
       if (!sig) {
-        throw new Error(`Ledger did not return signature for input ${i}`);
+        throw new Error("Ledger device did not sign the transaction. Please try again and confirm on your device.");
       }
       // signatureScript format: OP_DATA_64 <64-byte signature>
       return {

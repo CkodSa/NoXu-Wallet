@@ -68,7 +68,7 @@ window.addEventListener("message", async (event) => {
         source: "kaspa:content",
         type: "KASPA_PROVIDER_RESPONSE",
         id,
-        error: err instanceof Error ? err.message : String(err),
+        error: "The request could not be completed. Please try again.",
       },
       "*"
     );

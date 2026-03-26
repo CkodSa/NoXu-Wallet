@@ -70,7 +70,7 @@ export async function decryptSecret(password: string, payload: EncryptedPayload)
     // Current Argon2id-based decryption
     keyRaw = await deriveKeyArgon2id(password, salt);
   } else {
-    throw new Error("Unsupported payload version");
+    throw new Error("This wallet was created with a newer version of NoXu. Please update the app.");
   }
 
   try {
@@ -78,7 +78,7 @@ export async function decryptSecret(password: string, payload: EncryptedPayload)
   } catch (err) {
     // AES-GCM throws when password is wrong (auth tag mismatch)
     if (err instanceof Error && (err.message.includes("OperationError") || err.message.includes("decrypt"))) {
-      throw new Error("Incorrect password");
+      throw new Error("Incorrect password. Please try again.");
     }
     throw err;
   }
