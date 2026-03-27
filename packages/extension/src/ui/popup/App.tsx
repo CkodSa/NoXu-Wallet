@@ -1774,7 +1774,8 @@ function InnerApp() {
   const ActionCard = (
     <ScreenLayout title="NoXu Wallet">
       <div className="login-shell">
-        {/* Animated Logo */}
+        {/* Logo + password centered */}
+        <div className="login-center">
         <div className="login-logo-frame">
           <AnimatedLogo />
         </div>
@@ -1814,6 +1815,7 @@ function InnerApp() {
           )}
         </div>
 
+        </div>
         {/* Bottom buttons */}
         <div className="login-footer-buttons">
           <button
