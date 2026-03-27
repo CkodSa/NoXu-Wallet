@@ -1,13 +1,17 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { StatusBar } from "expo-status-bar";
-import { View, Text, StyleSheet, ActivityIndicator, AppState } from "react-native";
+import { View, StyleSheet, Image, AppState } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { NavigationContainer, DarkTheme } from "@react-navigation/native";
+import * as SplashScreen from "expo-splash-screen";
 import { initMobileCrypto } from "./src/platform/crypto-provider";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { useWalletService } from "./src/hooks/useWalletService";
 import { useWalletStore } from "./src/store";
 import { colors, fonts, spacing } from "./src/theme";
+
+// Keep native splash visible while we load
+SplashScreen.preventAutoHideAsync();
 
 // Initialize crypto provider before anything else
 initMobileCrypto();
@@ -58,11 +62,19 @@ function AppInner() {
     return () => sub.remove();
   }, []);
 
+  const onLayoutRootView = useCallback(async () => {
+    // Hide native splash as soon as our custom splash is visible
+    await SplashScreen.hideAsync();
+  }, []);
+
   if (!ready) {
     return (
-      <View style={styles.splash}>
-        <Text style={styles.splashLogo}>NoXu</Text>
-        <ActivityIndicator color={colors.accent} size="large" />
+      <View style={styles.splash} onLayout={onLayoutRootView}>
+        <Image
+          source={require("./assets/splash-icon.png")}
+          style={styles.splashImage}
+          resizeMode="contain"
+        />
       </View>
     );
   }
@@ -87,12 +99,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     justifyContent: "center",
     alignItems: "center",
-    gap: spacing.lg,
   },
-  splashLogo: {
-    fontSize: 48,
-    fontWeight: fonts.weights.bold,
-    color: colors.accent,
-    letterSpacing: 2,
+  splashImage: {
+    width: 280,
+    height: 280,
   },
 });

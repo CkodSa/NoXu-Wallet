@@ -146,7 +146,7 @@ export function useWalletService() {
   ): Promise<KRC20TransferResult> => {
     const wallet = getWallet();
     const account = wallet.getAccount();
-    if (!account || !account.privateKey || !account.publicKey) {
+    if (!account || !("privateKey" in account) || !account.privateKey || !account.publicKey) {
       throw new Error("Your wallet is locked. Please unlock it to continue.");
     }
 

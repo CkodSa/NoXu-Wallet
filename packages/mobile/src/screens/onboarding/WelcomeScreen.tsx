@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import type { OnboardingScreenProps } from "../../navigation/types";
@@ -11,17 +11,12 @@ export default function WelcomeScreen({
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Logo with glow */}
-        <View style={[styles.logoGlow, shadows.glow]}>
-          <LinearGradient
-            colors={[colors.gradientAccentStart, colors.gradientAccentEnd]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.logoCircle}
-          >
-            <Text style={styles.logoLetter}>N</Text>
-          </LinearGradient>
-        </View>
+        {/* Logo */}
+        <Image
+          source={require("../../../assets/splash-icon.png")}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
 
         <Text style={styles.logoText}>NoXu</Text>
         <Text style={styles.logoSubtext}>Wallet</Text>
@@ -74,21 +69,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  logoGlow: {
-    borderRadius: 45,
+  logoImage: {
+    width: 200,
+    height: 200,
     marginBottom: spacing.lg,
-  },
-  logoCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoLetter: {
-    fontSize: 42,
-    fontWeight: fonts.weights.extrabold,
-    color: colors.accentDark,
   },
   logoText: {
     fontSize: 48,

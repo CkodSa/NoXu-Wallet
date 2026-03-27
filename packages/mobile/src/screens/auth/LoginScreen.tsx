@@ -58,15 +58,10 @@ function AnimatedLogo({ size }: { size: number }) {
     <TouchableOpacity
       onPress={replay}
       activeOpacity={1}
-      style={[
-        {
-          borderRadius: size / 2,
-          width: size,
-          height: size,
-          overflow: "hidden",
-        },
-        shadows.glow,
-      ]}
+      style={{
+        width: size,
+        height: size,
+      }}
     >
       <Image
         key={gifKey}
